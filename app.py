@@ -217,7 +217,7 @@ def main():
         st.markdown("""
         **¿Qué hace esta aplicación?**
         
-        1. **Carga** archivos Excel de reportes de comedores
+        1. **Carga** archivos Excel de Reporte_lista_peso_carnicos
         2. **Procesa** y normaliza los datos automáticamente  
         3. **Genera** un DataFrame estructurado
         4. **Permite descargar** el resultado en Excel

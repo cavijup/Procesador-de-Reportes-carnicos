@@ -1,6 +1,7 @@
 """
 pdf_generator.py - Generador de PDFs para Guías de Transporte por Ruta
 Utiliza los datos procesados y la plantilla para crear PDFs individuales
+Versión actualizada con nombres de comedores en archivos
 """
 
 import pandas as pd
@@ -117,9 +118,21 @@ class GeneradorPDFsRutas:
         fecha_actual = datetime.now().strftime('%m%d')
         return f"{fecha_actual}-{numero_ruta}"
     
-    def generar_todos_los_pdfs(self, df_procesado):
+    def generar_pdf_comedor_individual(self, ruta_nombre, comedor_data, programa_info):
+        """
+        Genera un PDF para un comedor específico
+        """
+        datos_comedor = {
+            'comedores': [comedor_data],
+            'programa_info': programa_info
+        }
+        
+        return self.generar_pdf_individual(ruta_nombre, datos_comedor)
+    
+    def generar_todos_los_pdfs(self, df_procesado, modo="por_ruta"):
         """
         Genera PDFs para todas las rutas y los comprime en un ZIP
+        modo: "por_ruta" o "por_comedor"
         """
         # Procesar datos
         rutas_data = self.procesar_datos_para_pdf(df_procesado)
@@ -128,30 +141,72 @@ class GeneradorPDFsRutas:
         zip_buffer = BytesIO()
         
         with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+            total_pdfs = 0
+            
             for ruta_nombre, datos_ruta in rutas_data.items():
-                # Generar PDF para esta ruta
-                pdf_buffer = self.generar_pdf_individual(ruta_nombre, datos_ruta)
-                
-                # Limpiar nombre de archivo
-                nombre_archivo = self.limpiar_nombre_archivo(ruta_nombre)
-                nombre_pdf = f"Guia_Transporte_{nombre_archivo}.pdf"
-                
-                # Añadir al ZIP
-                zip_file.writestr(nombre_pdf, pdf_buffer.getvalue())
-                pdf_buffer.close()
+                if modo == "por_comedor":
+                    # NUEVO: Generar un PDF por cada comedor
+                    for i, comedor in enumerate(datos_ruta['comedores'], 1):
+                        # Crear datos de ruta con un solo comedor
+                        datos_comedor_individual = {
+                            'comedores': [comedor],
+                            'programa_info': datos_ruta['programa_info']
+                        }
+                        
+                        # Generar PDF para este comedor
+                        pdf_buffer = self.generar_pdf_individual(ruta_nombre, datos_comedor_individual)
+                        
+                        # Crear nombre con comedor
+                        nombre_comedor = self.limpiar_nombre_archivo(comedor['COMEDOR/ESCUELA'])
+                        numero_comedor = str(i).zfill(2)  # 01, 02, 03...
+                        ruta_limpia = self.limpiar_nombre_archivo(ruta_nombre)
+                        nombre_pdf = f"Guia_{ruta_limpia}_{numero_comedor}_{nombre_comedor}.pdf"
+                        
+                        # Añadir al ZIP
+                        zip_file.writestr(nombre_pdf, pdf_buffer.getvalue())
+                        pdf_buffer.close()
+                        total_pdfs += 1
+                        
+                else:
+                    # Modo original: Un PDF por ruta completa
+                    pdf_buffer = self.generar_pdf_individual(ruta_nombre, datos_ruta)
+                    
+                    # Limpiar nombre de archivo e incluir primer comedor
+                    ruta_limpia = self.limpiar_nombre_archivo(ruta_nombre)
+                    if datos_ruta['comedores']:
+                        primer_comedor = self.limpiar_nombre_archivo(datos_ruta['comedores'][0]['COMEDOR/ESCUELA'])
+                        nombre_pdf = f"Guia_{ruta_limpia}_{primer_comedor}.pdf"
+                    else:
+                        nombre_pdf = f"Guia_{ruta_limpia}.pdf"
+                    
+                    # Añadir al ZIP
+                    zip_file.writestr(nombre_pdf, pdf_buffer.getvalue())
+                    pdf_buffer.close()
+                    total_pdfs += 1
         
         zip_buffer.seek(0)
-        return zip_buffer, len(rutas_data)
+        return zip_buffer, total_pdfs
     
     def limpiar_nombre_archivo(self, nombre):
         """
         Limpia el nombre para que sea válido como nombre de archivo
         """
         import re
+        
+        # Convertir a string si no lo es
+        nombre = str(nombre)
+        
+        # Remover códigos de comedor (ej: "63/02") del inicio
+        nombre = re.sub(r'^\d+\/\d+\s*', '', nombre)
+        
         # Remover caracteres especiales y reemplazar espacios
         nombre_limpio = re.sub(r'[^\w\s-]', '', nombre)
         nombre_limpio = re.sub(r'[-\s]+', '_', nombre_limpio)
-        return nombre_limpio[:50]  # Limitar longitud
+        
+        # Remover guiones bajos al inicio y final
+        nombre_limpio = nombre_limpio.strip('_')
+        
+        return nombre_limpio[:40]  # Limitar longitud
     
     def crear_reporte_generacion(self, rutas_data):
         """
@@ -196,63 +251,122 @@ def integrar_generador_pdf_streamlit():
     # Mostrar información previa
     rutas_disponibles = df_procesado['RUTA'].unique()
     
-    st.info(f"📊 Se generarán PDFs para **{len(rutas_disponibles)} rutas** encontradas:")
+    st.info(f"📊 Se pueden generar PDFs para **{len(rutas_disponibles)} rutas** encontradas:")
     for i, ruta in enumerate(rutas_disponibles, 1):
         comedores_en_ruta = len(df_procesado[df_procesado['RUTA'] == ruta])
         st.write(f"{i}. **{ruta}** - {comedores_en_ruta} comedores")
     
     # Opciones de generación
+    st.subheader("🎯 Opciones de Generación")
+    
     col1, col2 = st.columns(2)
     
     with col1:
+        st.markdown("**📄 Generación Individual**")
         generar_individual = st.selectbox(
-            "Generar PDF individual:",
+            "Seleccionar ruta:",
             ["Seleccionar ruta..."] + list(rutas_disponibles)
         )
+        
+        # Si se selecciona una ruta, mostrar opciones de comedor
+        if generar_individual != "Seleccionar ruta...":
+            df_ruta = df_procesado[df_procesado['RUTA'] == generar_individual]
+            comedores_ruta = df_ruta['COMEDOR/ESCUELA'].tolist()
+            
+            tipo_pdf = st.radio(
+                "Tipo de PDF:",
+                ["📋 Ruta completa (todos los comedores)", "🏪 Comedor individual"]
+            )
+            
+            if tipo_pdf == "🏪 Comedor individual":
+                comedor_seleccionado = st.selectbox(
+                    "Seleccionar comedor:",
+                    comedores_ruta
+                )
+            else:
+                comedor_seleccionado = None
     
     with col2:
+        st.markdown("**🗂️ Generación Masiva**")
+        modo_masivo = st.radio(
+            "Modo de generación masiva:",
+            ["📋 Un PDF por ruta", "🏪 Un PDF por comedor"],
+            help="Elige cómo quieres organizar los PDFs en el ZIP"
+        )
+        
         generar_todos = st.button(
             "🗂️ Generar TODOS los PDFs (ZIP)",
             type="primary",
-            help="Genera un archivo ZIP con PDFs de todas las rutas"
+            help="Genera un archivo ZIP con PDFs según el modo seleccionado"
         )
     
     # Generar PDF individual
     if generar_individual != "Seleccionar ruta...":
-        if st.button(f"📄 Generar PDF para {generar_individual}"):
-            with st.spinner(f"Generando PDF para {generar_individual}..."):
+        if st.button(f"📄 Generar PDF"):
+            with st.spinner("Generando PDF..."):
                 generador = GeneradorPDFsRutas()
                 rutas_data = generador.procesar_datos_para_pdf(df_procesado)
                 
                 if generar_individual in rutas_data:
-                    pdf_buffer = generador.generar_pdf_individual(
-                        generar_individual, 
-                        rutas_data[generar_individual]
-                    )
+                    if comedor_seleccionado:
+                        # PDF para comedor específico
+                        comedor_data = df_ruta[df_ruta['COMEDOR/ESCUELA'] == comedor_seleccionado].iloc[0].to_dict()
+                        datos_comedor = {
+                            'comedores': [comedor_data],
+                            'programa_info': rutas_data[generar_individual]['programa_info']
+                        }
+                        pdf_buffer = generador.generar_pdf_individual(generar_individual, datos_comedor)
+                        
+                        # Nombre específico para comedor
+                        ruta_limpia = generador.limpiar_nombre_archivo(generar_individual)
+                        nombre_comedor = generador.limpiar_nombre_archivo(comedor_seleccionado)
+                        nombre_archivo = f"Guia_{ruta_limpia}_{nombre_comedor}"
+                    else:
+                        # PDF para ruta completa
+                        pdf_buffer = generador.generar_pdf_individual(
+                            generar_individual, 
+                            rutas_data[generar_individual]
+                        )
+                        
+                        # Nombre con primer comedor
+                        ruta_limpia = generador.limpiar_nombre_archivo(generar_individual)
+                        primer_comedor = generador.limpiar_nombre_archivo(
+                            rutas_data[generar_individual]['comedores'][0]['COMEDOR/ESCUELA']
+                        )
+                        nombre_archivo = f"Guia_{ruta_limpia}_{primer_comedor}"
                     
-                    nombre_archivo = generador.limpiar_nombre_archivo(generar_individual)
                     fecha_actual = datetime.now().strftime('%Y%m%d_%H%M%S')
                     
                     st.download_button(
-                        label=f"📥 Descargar PDF - {generar_individual}",
+                        label=f"📥 Descargar PDF",
                         data=pdf_buffer,
-                        file_name=f"Guia_Transporte_{nombre_archivo}_{fecha_actual}.pdf",
+                        file_name=f"{nombre_archivo}_{fecha_actual}.pdf",
                         mime="application/pdf"
                     )
                     
-                    st.success(f"✅ PDF generado para {generar_individual}")
+                    st.success(f"✅ PDF generado exitosamente")
     
     # Generar todos los PDFs
     if generar_todos:
         with st.spinner("🔄 Generando PDFs para todas las rutas..."):
             generador = GeneradorPDFsRutas()
-            zip_buffer, num_pdfs = generador.generar_todos_los_pdfs(df_procesado)
+            
+            # Determinar modo basado en selección
+            modo = "por_comedor" if modo_masivo == "🏪 Un PDF por comedor" else "por_ruta"
+            
+            zip_buffer, num_pdfs = generador.generar_todos_los_pdfs(df_procesado, modo=modo)
             
             fecha_actual = datetime.now().strftime('%Y%m%d_%H%M%S')
-            nombre_zip = f"Guias_Transporte_Todas_Rutas_{fecha_actual}.zip"
+            
+            if modo == "por_comedor":
+                nombre_zip = f"Guias_Por_Comedor_{fecha_actual}.zip"
+                descripcion = f"{num_pdfs} PDFs (uno por comedor)"
+            else:
+                nombre_zip = f"Guias_Por_Ruta_{fecha_actual}.zip"
+                descripcion = f"{num_pdfs} PDFs (uno por ruta)"
             
             st.download_button(
-                label=f"📦 Descargar ZIP con {num_pdfs} PDFs",
+                label=f"📦 Descargar ZIP con {descripcion}",
                 data=zip_buffer,
                 file_name=nombre_zip,
                 mime="application/zip"

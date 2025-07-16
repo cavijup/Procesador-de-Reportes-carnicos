@@ -5,6 +5,13 @@ from io import BytesIO
 import re
 from datetime import datetime
 
+# Importar los nuevos módulos para PDFs
+try:
+    from pdf_generator import integrar_generador_pdf_streamlit
+    PDF_DISPONIBLE = True
+except ImportError:
+    PDF_DISPONIBLE = False
+
 # Configuración de la página
 st.set_page_config(
     page_title="Procesador de Reportes carnicos - programas chvs",
@@ -214,143 +221,175 @@ def main():
         2. **Procesa** y normaliza los datos automáticamente  
         3. **Genera** un DataFrame estructurado
         4. **Permite descargar** el resultado en Excel
+        5. **🆕 Genera PDFs** de guías de transporte por ruta
         
         **Formatos soportados:**
         - Archivos .xlsx con estructura de rutas
         - Reportes de comedores comunitarios
         """)
         
+        # Mostrar estado de PDFs
+        if PDF_DISPONIBLE:
+            st.success("✅ Generación de PDFs habilitada")
+        else:
+            st.warning("⚠️ PDFs no disponibles\n\nInstala: `pip install reportlab`")
+        
         st.markdown("---")
         st.markdown("**Desarrollado para:**  \nComedores Comunitarios Cali 2025")
     
-    # Área principal
-    col1, col2 = st.columns([2, 1])
+    # Crear tabs para organizar la funcionalidad
+    tab1, tab2 = st.tabs(["📊 Procesar Datos", "📄 Generar PDFs"])
     
-    with col1:
-        st.header("📁 Cargar Archivo")
-        archivo_subido = st.file_uploader(
-            "Selecciona el archivo Excel del reporte de comedores",
-            type=['xlsx', 'xls'],
-            help="Archivo descargado del programa de comedores comunitarios"
-        )
+    with tab1:
+        # Área principal de procesamiento
+        col1, col2 = st.columns([2, 1])
         
-    with col2:
-        st.header("📊 Estado")
-        if archivo_subido is None:
-            st.info("Esperando archivo...")
-        else:
-            st.success("Archivo cargado ✅")
-    
-    # Procesar archivo si se ha subido
-    if archivo_subido is not None:
-        with st.spinner("🔄 Procesando archivo..."):
-            df_procesado, num_registros = procesar_archivo_comedores(archivo_subido)
+        with col1:
+            st.header("📁 Cargar Archivo")
+            archivo_subido = st.file_uploader(
+                "Selecciona el archivo Excel del reporte de comedores",
+                type=['xlsx', 'xls'],
+                help="Archivo descargado del programa de comedores comunitarios"
+            )
             
-        if df_procesado is not None and num_registros > 0:
-            st.success(f"✅ Archivo procesado exitosamente! {num_registros} comedores encontrados")
-            
-            # Mostrar métricas principales
-            st.header("📊 Resumen del Procesamiento")
-            
-            col1, col2, col3, col4, col5 = st.columns(5)
-            with col1:
-                st.metric("Comedores", len(df_procesado))
-            with col2:
-                st.metric("Beneficiarios", f"{df_procesado['COBER'].sum():,}")
-            with col3:
-                st.metric("Rutas", df_procesado['RUTA'].nunique())
-            with col4:
-                st.metric("Carne Cerdo (kg)", f"{df_procesado['CARNE_DE_CERDO'].sum():,}")
-            with col5:
-                st.metric("Pollo Total (kg)", f"{df_procesado['POLLO_PESO'].sum():,}")
-            
-            # Mostrar DataFrame
-            st.header("📋 Datos Procesados")
-            
-            # Filtros
-            col1, col2 = st.columns(2)
-            with col1:
-                rutas_seleccionadas = st.multiselect(
-                    "Filtrar por rutas:",
-                    options=sorted(df_procesado['RUTA'].unique()),
-                    default=sorted(df_procesado['RUTA'].unique())[:5]  # Mostrar solo las primeras 5
-                )
-            
-            with col2:
-                mostrar_todos = st.checkbox("Mostrar todas las rutas", value=False)
-                
-            if mostrar_todos:
-                df_mostrar = df_procesado
+        with col2:
+            st.header("📊 Estado")
+            if archivo_subido is None:
+                st.info("Esperando archivo...")
             else:
-                df_mostrar = df_procesado[df_procesado['RUTA'].isin(rutas_seleccionadas)]
-            
-            # Mostrar tabla
-            st.dataframe(
-                df_mostrar, 
-                use_container_width=True,
-                height=400
-            )
-            
-            # Análisis por ruta
-            st.header("📈 Análisis por Ruta")
-            df_analisis = df_procesado.groupby('RUTA').agg({
-                'COMEDOR/ESCUELA': 'count',
-                'COBER': 'sum',
-                'CARNE_DE_CERDO': 'sum',
-                'POLLO_UNIDADES': 'sum',
-                'POLLO_PESO': 'sum'
-            }).round(2)
-            
-            df_analisis.columns = ['Comedores', 'Beneficiarios', 'Cerdo_kg', 'Pollo_Und', 'Pollo_kg']
-            
-            st.dataframe(df_analisis, use_container_width=True)
-            
-            # Botón de descarga
-            st.header("💾 Descargar Resultado")
-            
-            archivo_excel = crear_excel_descarga(df_procesado)
-            fecha_actual = datetime.now().strftime('%Y%m%d_%H%M%S')
-            nombre_archivo = f"comedores_procesados_{fecha_actual}.xlsx"
-            
-            st.download_button(
-                label="📥 Descargar Excel Procesado",
-                data=archivo_excel,
-                file_name=nombre_archivo,
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                help="Descarga el archivo Excel con los datos normalizados y análisis"
-            )
-            
-            # Información adicional
-            with st.expander("ℹ️ Información del archivo descargado"):
-                st.markdown("""
-                **El archivo Excel contiene 3 hojas:**
+                st.success("Archivo cargado ✅")
+        
+        # Procesar archivo si se ha subido
+        if archivo_subido is not None:
+            with st.spinner("🔄 Procesando archivo..."):
+                df_procesado, num_registros = procesar_archivo_comedores(archivo_subido)
                 
-                1. **Comedores_Procesados**: Datos principales normalizados
-                2. **Resumen**: Estadísticas generales 
-                3. **Analisis_Por_Ruta**: Agregaciones por ruta
+            if df_procesado is not None and num_registros > 0:
+                # Guardar en session_state para uso en tab de PDFs
+                st.session_state.df_procesado = df_procesado
                 
-                **Estructura de la base de datos:**
-                - Cada fila = 1 comedor único
-                - Columnas normalizadas con nombres descriptivos
-                - Datos listos para análisis o integración
-                """)
+                st.success(f"✅ Archivo procesado exitosamente! {num_registros} comedores encontrados")
                 
+                # Mostrar métricas principales
+                st.header("📊 Resumen del Procesamiento")
+                
+                col1, col2, col3, col4, col5 = st.columns(5)
+                with col1:
+                    st.metric("Comedores", len(df_procesado))
+                with col2:
+                    st.metric("Beneficiarios", f"{df_procesado['COBER'].sum():,}")
+                with col3:
+                    st.metric("Rutas", df_procesado['RUTA'].nunique())
+                with col4:
+                    st.metric("Carne Cerdo (kg)", f"{df_procesado['CARNE_DE_CERDO'].sum():,}")
+                with col5:
+                    st.metric("Pollo Total (kg)", f"{df_procesado['POLLO_PESO'].sum():,}")
+                
+                # Mostrar DataFrame
+                st.header("📋 Datos Procesados")
+                
+                # Filtros
+                col1, col2 = st.columns(2)
+                with col1:
+                    rutas_seleccionadas = st.multiselect(
+                        "Filtrar por rutas:",
+                        options=sorted(df_procesado['RUTA'].unique()),
+                        default=sorted(df_procesado['RUTA'].unique())[:5]  # Mostrar solo las primeras 5
+                    )
+                
+                with col2:
+                    mostrar_todos = st.checkbox("Mostrar todas las rutas", value=False)
+                    
+                if mostrar_todos:
+                    df_mostrar = df_procesado
+                else:
+                    df_mostrar = df_procesado[df_procesado['RUTA'].isin(rutas_seleccionadas)]
+                
+                # Mostrar tabla
+                st.dataframe(
+                    df_mostrar, 
+                    use_container_width=True,
+                    height=400
+                )
+                
+                # Análisis por ruta
+                st.header("📈 Análisis por Ruta")
+                df_analisis = df_procesado.groupby('RUTA').agg({
+                    'COMEDOR/ESCUELA': 'count',
+                    'COBER': 'sum',
+                    'CARNE_DE_CERDO': 'sum',
+                    'POLLO_UNIDADES': 'sum',
+                    'POLLO_PESO': 'sum'
+                }).round(2)
+                
+                df_analisis.columns = ['Comedores', 'Beneficiarios', 'Cerdo_kg', 'Pollo_Und', 'Pollo_kg']
+                
+                st.dataframe(df_analisis, use_container_width=True)
+                
+                # Botón de descarga
+                st.header("💾 Descargar Resultado")
+                
+                archivo_excel = crear_excel_descarga(df_procesado)
+                fecha_actual = datetime.now().strftime('%Y%m%d_%H%M%S')
+                nombre_archivo = f"comedores_procesados_{fecha_actual}.xlsx"
+                
+                st.download_button(
+                    label="📥 Descargar Excel Procesado",
+                    data=archivo_excel,
+                    file_name=nombre_archivo,
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    help="Descarga el archivo Excel con los datos normalizados y análisis"
+                )
+                
+                # Información adicional
+                with st.expander("ℹ️ Información del archivo descargado"):
+                    st.markdown("""
+                    **El archivo Excel contiene 3 hojas:**
+                    
+                    1. **Comedores_Procesados**: Datos principales normalizados
+                    2. **Resumen**: Estadísticas generales 
+                    3. **Analisis_Por_Ruta**: Agregaciones por ruta
+                    
+                    **Estructura de la base de datos:**
+                    - Cada fila = 1 comedor único
+                    - Columnas normalizadas con nombres descriptivos
+                    - Datos listos para análisis o integración
+                    """)
+                    
+            else:
+                st.error("❌ No se pudieron procesar los datos del archivo. Verifica que sea un reporte válido de comedores comunitarios.")
+                
+                with st.expander("🔧 Ayuda para resolución de problemas"):
+                    st.markdown("""
+                    **Posibles causas del error:**
+                    
+                    1. **Formato incorrecto**: El archivo debe ser un reporte de comedores con estructura de rutas
+                    2. **Archivo dañado**: Intenta descargar nuevamente el archivo del programa original
+                    3. **Estructura diferente**: El archivo debe contener bloques de "DIA X - RUTA Y"
+                    
+                    **Verifica que el archivo contenga:**
+                    - Información del programa en el encabezado
+                    - Bloques organizados por rutas
+                    - Tablas con comedores y sus datos
+                    """)
+    
+    with tab2:
+        # Tab para generación de PDFs
+        if PDF_DISPONIBLE:
+            integrar_generador_pdf_streamlit()
         else:
-            st.error("❌ No se pudieron procesar los datos del archivo. Verifica que sea un reporte válido de comedores comunitarios.")
+            st.error("🚫 **Funcionalidad de PDFs no disponible**")
+            st.markdown("""
+            Para habilitar la generación de PDFs, instala las dependencias necesarias:
             
-            with st.expander("🔧 Ayuda para resolución de problemas"):
-                st.markdown("""
-                **Posibles causas del error:**
-                
-                1. **Formato incorrecto**: El archivo debe ser un reporte de comedores con estructura de rutas
-                2. **Archivo dañado**: Intenta descargar nuevamente el archivo del programa original
-                3. **Estructura diferente**: El archivo debe contener bloques de "DIA X - RUTA Y"
-                
-                **Verifica que el archivo contenga:**
-                - Información del programa en el encabezado
-                - Bloques organizados por rutas
-                - Tablas con comedores y sus datos
-                """)
+            ```bash
+            pip install reportlab
+            ```
+            
+            Luego reinicia la aplicación.
+            """)
+            
+            st.info("💡 Los PDFs generarán guías de transporte individuales por ruta, basadas en el formato oficial.")
 
 if __name__ == "__main__":
     main()

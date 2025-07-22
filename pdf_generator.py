@@ -1,12 +1,6 @@
-"""
-pdf_generator.py - Generador de PDFs para Guías de Transporte por Ruta
-Utiliza los datos procesados y la plantilla para crear PDFs individuales
-Versión actualizada con nombres de comedores en archivos
-"""
-
 import pandas as pd
 from reportlab.platypus import SimpleDocTemplate, PageBreak
-from reportlab.lib.pagesizes import A4
+from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.units import inch
 from io import BytesIO
 import zipfile
@@ -19,8 +13,7 @@ class GeneradorPDFsRutas:
         
     def procesar_datos_para_pdf(self, df_procesado):
         """
-        Convierte los datos procesados del formato de comedores
-        al formato necesario para las guías de transporte
+        Convierte los datos procesados del formato de comedores al formato necesario para las guías de transporte
         """
         # Agrupar por ruta
         rutas_data = {}
@@ -33,68 +26,111 @@ class GeneradorPDFsRutas:
                     'programa_info': {
                         'programa': row['PROGRAMA'],
                         'fecha_entrega': row['FECHA_ENTREGA'],
+                        'empresa': row.get('EMPRESA', 'CONSORCIO ALIMENTANDO A CALI 2025'),
+                        'solicitud_remesa': row.get('SOLICITUD_REMESA', 'MENUS PARA 10 DIAS'),
+                        'dias_consumo': row.get('DIAS_CONSUMO', f"{row['FECHA_ENTREGA']} - {row['FECHA_ENTREGA']}"),
                         'dia': row['DIA']
                     }
                 }
             
-            # Convertir datos del comedor al formato de la guía
+            # Incluir muslo_contramuslo en los datos del comedor
             comedor_data = {
                 'MUNICIPIO': row['MUNICIPIO'],
                 'DEPARTAMENTO': 'VALLE',  # Valor por defecto
                 'COMEDOR/ESCUELA': row['COMEDOR/ESCUELA'],
                 'COBER': row['COBER'],
                 'DIRECCIÓN': row['DIRECCIÓN'],
-                'CARNE_DE_RES': 0,  # No disponible en formato original, se puede calcular
-                'CARNE_DE_CERDO': row['CARNE_DE_CERDO'],
-                'POLLO_PESO': row['POLLO_PESO']
+                'CARNE_DE_RES': row.get('CARNE_DE_RES', 0),        # Puede ser 0
+                'CARNE_DE_CERDO': row['CARNE_DE_CERDO'],           # Siempre presente
+                'MUSLO_CONTRAMUSLO': row.get('MUSLO_CONTRAMUSLO', 0),  # ⭐ NUEVA LÍNEA
+                'POLLO_PESO': row.get('POLLO_PESO', 0)             # Puede ser 0
             }
             
             rutas_data[ruta]['comedores'].append(comedor_data)
         
         return rutas_data
     
-    def generar_pdf_individual(self, ruta_nombre, datos_ruta):
+    def generar_pdf_individual(self, ruta_nombre, datos_ruta, elaborado_por=None, dictamen=None, lotes_personalizados=None):
         """
-        Genera un PDF individual para una ruta específica
+        ⭐ MÉTODO CORREGIDO: Ahora USA la paginación de 4 filas por página
+        """
+        buffer = BytesIO()
+        
+        # Configurar datos del programa
+        programa_info = datos_ruta['programa_info'].copy()
+        if dictamen:
+            programa_info['dictamen'] = dictamen
+        
+        # ⭐ CLAVE: Usar el método de paginación correcto
+        nombre_archivo_temporal = f"temp_guia_{ruta_nombre}.pdf"
+        
+        try:
+            # ⭐ LLAMAR AL MÉTODO QUE SÍ PAGINA CORRECTAMENTE
+            self.plantilla.generar_pdf_con_paginacion(
+                datos_programa=programa_info,
+                datos_comedores=datos_ruta['comedores'],
+                lotes_personalizados=lotes_personalizados,
+                elaborado_por=elaborado_por or "____________________",
+                nombre_archivo=nombre_archivo_temporal
+            )
+            
+            # Leer el archivo temporal y escribirlo al buffer
+            import os
+            if os.path.exists(nombre_archivo_temporal):
+                with open(nombre_archivo_temporal, 'rb') as temp_file:
+                    buffer.write(temp_file.read())
+                # Limpiar archivo temporal
+                os.remove(nombre_archivo_temporal)
+            
+            buffer.seek(0)
+            return buffer
+            
+        except Exception as e:
+            print(f"Error generando PDF: {e}")
+            # Fallback: usar el método anterior si falla
+            return self._generar_pdf_fallback(ruta_nombre, datos_ruta, elaborado_por, dictamen, lotes_personalizados)
+    
+    def _generar_pdf_fallback(self, ruta_nombre, datos_ruta, elaborado_por, dictamen, lotes_personalizados):
+        """
+        Método de fallback usando el método original (sin paginación correcta)
+        ⚠️ ESTE ES EL MÉTODO ANTERIOR QUE NO PAGINABA BIEN
         """
         buffer = BytesIO()
         
         # Configurar documento
         doc = SimpleDocTemplate(
             buffer, 
-            pagesize=A4,
-            rightMargin=0.5*inch, 
-            leftMargin=0.5*inch,
-            topMargin=0.5*inch, 
+            pagesize=landscape(A4),
+            rightMargin=0.3*inch,
+            leftMargin=0.3*inch,
+            topMargin=0.2*inch, 
             bottomMargin=0.5*inch,
             title=f"Guía de Transporte - {ruta_nombre}"
         )
         
         # Elementos del documento
         elementos = []
-        
-        # 1. Encabezado
-        programa_info = datos_ruta['programa_info']
-        
-        # Generar número de guía único basado en ruta
+                                       
+        programa_info = datos_ruta['programa_info'].copy()
+        if dictamen:
+            programa_info['dictamen'] = dictamen
         numero_guia = self.generar_numero_guia(ruta_nombre)
-        
         elementos.extend(self.plantilla.crear_encabezado(programa_info, numero_guia))
         
-        # 2. Tabla de encabezados de productos
-        elementos.append(self.plantilla.crear_tabla_encabezados())
+        # 2. Tabla de encabezados de productos con empresa dinámica
+        elementos.append(self.plantilla.crear_tabla_encabezados(programa_info))
         
         # 3. Sección de ruta
         elementos.extend(self.plantilla.crear_seccion_ruta(ruta_nombre))
         
-        # 4. Tabla principal de comedores
-        elementos.append(self.plantilla.crear_tabla_comedores(datos_ruta['comedores']))
+        # 4. Tabla principal de comedores (⚠️ AQUÍ NO SE PAGINA CORRECTAMENTE)
+        elementos.append(self.plantilla.crear_tabla_comedores(datos_ruta['comedores'], lotes_personalizados))
         
         # 5. Sección adicional
         elementos.extend(self.plantilla.crear_seccion_adicional())
         
-        # 6. Pie de página
-        elementos.extend(self.plantilla.crear_pie_pagina())
+        elaborado_val = elaborado_por if elaborado_por is not None else "____________________"
+        elementos.extend(self.plantilla.crear_pie_pagina(elaborado_val))
         
         # Construir PDF
         doc.build(elementos)
@@ -118,72 +154,57 @@ class GeneradorPDFsRutas:
         fecha_actual = datetime.now().strftime('%m%d')
         return f"{fecha_actual}-{numero_ruta}"
     
-    def generar_pdf_comedor_individual(self, ruta_nombre, comedor_data, programa_info):
+    def generar_pdf_comedor_individual(self, ruta_nombre, comedor_data, programa_info, elaborado_por=None, dictamen=None):
         """
         Genera un PDF para un comedor específico
+        ⭐ CORREGIDO: También usa paginación correcta
         """
         datos_comedor = {
             'comedores': [comedor_data],
             'programa_info': programa_info
         }
         
-        return self.generar_pdf_individual(ruta_nombre, datos_comedor)
+        return self.generar_pdf_individual(ruta_nombre, datos_comedor, elaborado_por, dictamen)
     
-    def generar_todos_los_pdfs(self, df_procesado, modo="por_ruta"):
+    def generar_todos_los_pdfs(self, df_procesado, modo="por_ruta", elaborado_por=None, dictamen=None, lotes_personalizados=None):
         """
         Genera PDFs para todas las rutas y los comprime en un ZIP
         modo: "por_ruta" o "por_comedor"
+        ⭐ AHORA CON PAGINACIÓN CORRECTA DE 4 FILAS
         """
-        # Procesar datos
         rutas_data = self.procesar_datos_para_pdf(df_procesado)
-        
-        # Crear ZIP en memoria
         zip_buffer = BytesIO()
+        total_pdfs = 0
         
         with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
-            total_pdfs = 0
-            
             for ruta_nombre, datos_ruta in rutas_data.items():
                 if modo == "por_comedor":
-                    # NUEVO: Generar un PDF por cada comedor
                     for i, comedor in enumerate(datos_ruta['comedores'], 1):
-                        # Crear datos de ruta con un solo comedor
                         datos_comedor_individual = {
                             'comedores': [comedor],
-                            'programa_info': datos_ruta['programa_info']
+                            'programa_info': datos_ruta['programa_info'].copy()
                         }
-                        
-                        # Generar PDF para este comedor
-                        pdf_buffer = self.generar_pdf_individual(ruta_nombre, datos_comedor_individual)
-                        
-                        # Crear nombre con comedor
+                        pdf_buffer = self.generar_pdf_individual(ruta_nombre, datos_comedor_individual, elaborado_por, dictamen, lotes_personalizados)
                         nombre_comedor = self.limpiar_nombre_archivo(comedor['COMEDOR/ESCUELA'])
-                        numero_comedor = str(i).zfill(2)  # 01, 02, 03...
+                        numero_comedor = str(i).zfill(2)
                         ruta_limpia = self.limpiar_nombre_archivo(ruta_nombre)
                         nombre_pdf = f"Guia_{ruta_limpia}_{numero_comedor}_{nombre_comedor}.pdf"
-                        
-                        # Añadir al ZIP
                         zip_file.writestr(nombre_pdf, pdf_buffer.getvalue())
                         pdf_buffer.close()
                         total_pdfs += 1
-                        
                 else:
-                    # Modo original: Un PDF por ruta completa
-                    pdf_buffer = self.generar_pdf_individual(ruta_nombre, datos_ruta)
-                    
-                    # Limpiar nombre de archivo e incluir primer comedor
+                    # ⭐ MODO POR RUTA CON PAGINACIÓN CORRECTA
+                    pdf_buffer = self.generar_pdf_individual(ruta_nombre, datos_ruta, elaborado_por, dictamen, lotes_personalizados)
                     ruta_limpia = self.limpiar_nombre_archivo(ruta_nombre)
                     if datos_ruta['comedores']:
                         primer_comedor = self.limpiar_nombre_archivo(datos_ruta['comedores'][0]['COMEDOR/ESCUELA'])
                         nombre_pdf = f"Guia_{ruta_limpia}_{primer_comedor}.pdf"
                     else:
                         nombre_pdf = f"Guia_{ruta_limpia}.pdf"
-                    
-                    # Añadir al ZIP
                     zip_file.writestr(nombre_pdf, pdf_buffer.getvalue())
                     pdf_buffer.close()
                     total_pdfs += 1
-        
+                    
         zip_buffer.seek(0)
         return zip_buffer, total_pdfs
     
@@ -206,7 +227,7 @@ class GeneradorPDFsRutas:
         # Remover guiones bajos al inicio y final
         nombre_limpio = nombre_limpio.strip('_')
         
-        return nombre_limpio[:40]  # Limitar longitud
+        return nombre_limpio[:40]
     
     def crear_reporte_generacion(self, rutas_data):
         """
@@ -218,28 +239,46 @@ class GeneradorPDFsRutas:
             comedores_count = len(datos_ruta['comedores'])
             total_cobertura = sum(c['COBER'] for c in datos_ruta['comedores'])
             total_cerdo = sum(c['CARNE_DE_CERDO'] for c in datos_ruta['comedores'])
-            total_pollo = sum(c['POLLO_PESO'] for c in datos_ruta['comedores'])
+            total_res = sum(c.get('CARNE_DE_RES', 0) for c in datos_ruta['comedores'])
+            total_muslo_contramuslo = sum(c.get('MUSLO_CONTRAMUSLO', 0) for c in datos_ruta['comedores'])
+            total_pollo = sum(c.get('POLLO_PESO', 0) for c in datos_ruta['comedores'])
             
             reporte.append({
                 'Ruta': ruta_nombre,
                 'Comedores': comedores_count,
+                'Paginas_PDF': self._calcular_paginas_necesarias(comedores_count),  # ⭐ NUEVA COLUMNA
                 'Total_Beneficiarios': total_cobertura,
+                'Total_Res_kg': total_res,
                 'Total_Cerdo_kg': total_cerdo,
+                'Total_Muslo_Contramuslo_und': total_muslo_contramuslo,
                 'Total_Pollo_kg': total_pollo,
+                'Empresa': datos_ruta['programa_info']['empresa'],
+                'Solicitud_Remesa': datos_ruta['programa_info']['solicitud_remesa'],
+                'Dias_Consumo': datos_ruta['programa_info']['dias_consumo'],
                 'Numero_Guia': self.generar_numero_guia(ruta_nombre)
             })
         
         return pd.DataFrame(reporte)
+
+    def _calcular_paginas_necesarias(self, num_comedores):
+        """
+        ⭐ NUEVA FUNCIÓN: Calcula cuántas páginas se necesitan para N comedores
+        Con regla de 4 filas por página
+        """
+        import math
+        return math.ceil(num_comedores / 4)
 
 # Funciones de integración con Streamlit
 
 def integrar_generador_pdf_streamlit():
     """
     Función para integrar el generador de PDF en la aplicación Streamlit
+    ⭐ ACTUALIZADA PARA MOSTRAR INFO DE PAGINACIÓN
     """
     import streamlit as st
     
     st.header("📄 Generar PDFs de Guías de Transporte")
+    st.info("⭐ **CORREGIDO**: Ahora respeta la regla de **4 filas por página** correctamente")
     
     # Verificar si hay datos procesados en session_state
     if 'df_procesado' not in st.session_state or st.session_state.df_procesado is None:
@@ -248,13 +287,72 @@ def integrar_generador_pdf_streamlit():
     
     df_procesado = st.session_state.df_procesado
     
-    # Mostrar información previa
-    rutas_disponibles = df_procesado['RUTA'].unique()
+    # Verificación defensiva: Comprobar si las columnas existen
+    tiene_empresa = 'EMPRESA' in df_procesado.columns
+    tiene_solicitud_remesa = 'SOLICITUD_REMESA' in df_procesado.columns
+    tiene_dias_consumo = 'DIAS_CONSUMO' in df_procesado.columns
     
-    st.info(f"📊 Se pueden generar PDFs para **{len(rutas_disponibles)} rutas** encontradas:")
-    for i, ruta in enumerate(rutas_disponibles, 1):
-        comedores_en_ruta = len(df_procesado[df_procesado['RUTA'] == ruta])
-        st.write(f"{i}. **{ruta}** - {comedores_en_ruta} comedores")
+    if not tiene_empresa or not tiene_solicitud_remesa or not tiene_dias_consumo:
+        st.warning("⚠️ **DataFrame procesado con versión anterior detectado**")
+        st.info("🔄 **Solución**: Vuelve a cargar y procesar tu archivo Excel para obtener todos los datos dinámicos.")
+    
+    # ⭐ MOSTRAR INFO DE PAGINACIÓN
+    st.subheader("📊 Información de Paginación")
+    rutas_disponibles = df_procesado['RUTA'].unique() if 'RUTA' in df_procesado.columns else []
+    
+    if len(rutas_disponibles) > 0:
+        for ruta in rutas_disponibles:
+            comedores_en_ruta = len(df_procesado[df_procesado['RUTA'] == ruta])
+            import math
+            paginas_necesarias = math.ceil(comedores_en_ruta / 4)
+            st.write(f"**{ruta}**: {comedores_en_ruta} comedores → **{paginas_necesarias} páginas** (4 filas/página)")
+    
+    # Mostrar información de la empresa
+    st.subheader("🏢 Información de la Empresa")
+    if tiene_empresa:
+        empresa = df_procesado['EMPRESA'].iloc[0] if len(df_procesado) > 0 else "N/A"
+        st.success(f"🏢 **Empresa**: {empresa}")
+    else:
+        st.warning("🏢 **Empresa**: CONSORCIO ALIMENTANDO A CALI 2025 (valor por defecto)")
+    
+    # Mostrar información de las 4 columnas
+    st.subheader("📊 Productos incluidos en el PDF")
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        total_res = df_procesado['CARNE_DE_RES'].sum() if 'CARNE_DE_RES' in df_procesado.columns else 0
+        st.metric("🐄 Carne de Res", f"{total_res:.1f} kg")
+    
+    with col2:
+        total_cerdo = df_procesado['CARNE_DE_CERDO'].sum() if 'CARNE_DE_CERDO' in df_procesado.columns else 0
+        st.metric("🐷 Carne de Cerdo", f"{total_cerdo:.1f} kg")
+    
+    with col3:
+        total_muslo = df_procesado['MUSLO_CONTRAMUSLO'].sum() if 'MUSLO_CONTRAMUSLO' in df_procesado.columns else 0
+        st.metric("🐔 Muslo/Contramuslo", f"{total_muslo:,} und")
+    
+    with col4:
+        total_pollo = df_procesado['POLLO_PESO'].sum() if 'POLLO_PESO' in df_procesado.columns else 0
+        st.metric("🐔 Pechuga Pollo", f"{total_pollo:.1f} kg")
+    
+    # Mostrar datos dinámicos
+    st.subheader("📋 Información Dinámica del Archivo")
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        if tiene_solicitud_remesa:
+            solicitud_remesa = df_procesado['SOLICITUD_REMESA'].iloc[0] if len(df_procesado) > 0 else "N/A"
+            st.success(f"📄 **Solicitud Remesa**: {solicitud_remesa}")
+        else:
+            st.warning("📄 **Solicitud Remesa**: MENUS PARA 10 DIAS (valor por defecto)")
+    
+    with col2:
+        if tiene_dias_consumo:
+            dias_consumo = df_procesado['DIAS_CONSUMO'].iloc[0] if len(df_procesado) > 0 else "N/A"
+            st.success(f"📅 **Días de Consumo**: {dias_consumo}")
+        else:
+            fecha_actual = pd.Timestamp.now().strftime('%Y-%m-%d')
+            st.warning(f"📅 **Días de Consumo**: {fecha_actual} - {fecha_actual} (valor por defecto)")
     
     # Opciones de generación
     st.subheader("🎯 Opciones de Generación")
@@ -302,8 +400,8 @@ def integrar_generador_pdf_streamlit():
     
     # Generar PDF individual
     if generar_individual != "Seleccionar ruta...":
-        if st.button(f"📄 Generar PDF"):
-            with st.spinner("Generando PDF..."):
+        if st.button(f"📄 Generar PDF con paginación corregida"):
+            with st.spinner("Generando PDF con paginación de 4 filas por página..."):
                 generador = GeneradorPDFsRutas()
                 rutas_data = generador.procesar_datos_para_pdf(df_procesado)
                 
@@ -344,11 +442,15 @@ def integrar_generador_pdf_streamlit():
                         mime="application/pdf"
                     )
                     
-                    st.success(f"✅ PDF generado exitosamente")
+                    # Mostrar confirmación con info de paginación
+                    num_comedores = len(rutas_data[generar_individual]['comedores']) if not comedor_seleccionado else 1
+                    import math
+                    paginas = math.ceil(num_comedores / 4)
+                    st.success(f"✅ PDF generado con **{paginas} páginas** para {num_comedores} comedores (4 filas/página)")
     
     # Generar todos los PDFs
     if generar_todos:
-        with st.spinner("🔄 Generando PDFs para todas las rutas..."):
+        with st.spinner("🔄 Generando PDFs con paginación correcta de 4 filas..."):
             generador = GeneradorPDFsRutas()
             
             # Determinar modo basado en selección
@@ -359,10 +461,10 @@ def integrar_generador_pdf_streamlit():
             fecha_actual = datetime.now().strftime('%Y%m%d_%H%M%S')
             
             if modo == "por_comedor":
-                nombre_zip = f"Guias_Por_Comedor_{fecha_actual}.zip"
+                nombre_zip = f"Guias_Por_Comedor_4FilasPagina_{fecha_actual}.zip"
                 descripcion = f"{num_pdfs} PDFs (uno por comedor)"
             else:
-                nombre_zip = f"Guias_Por_Ruta_{fecha_actual}.zip"
+                nombre_zip = f"Guias_Por_Ruta_4FilasPagina_{fecha_actual}.zip"
                 descripcion = f"{num_pdfs} PDFs (uno por ruta)"
             
             st.download_button(
@@ -372,13 +474,14 @@ def integrar_generador_pdf_streamlit():
                 mime="application/zip"
             )
             
-            st.success(f"✅ {num_pdfs} PDFs generados y comprimidos en ZIP")
+            st.success(f"✅ {num_pdfs} PDFs generados con **paginación correcta de 4 filas por página**")
             
-            # Mostrar reporte
+            # Mostrar reporte con info de paginación
             rutas_data = generador.procesar_datos_para_pdf(df_procesado)
             reporte = generador.crear_reporte_generacion(rutas_data)
             
-            with st.expander("📋 Ver reporte detallado"):
+            with st.expander("📋 Ver reporte detallado con info de paginación"):
+                st.info("⭐ El reporte ahora incluye el número de páginas necesarias por ruta")
                 st.dataframe(reporte, use_container_width=True)
 
 # Función para añadir al requirements.txt

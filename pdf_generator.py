@@ -52,7 +52,7 @@ class GeneradorPDFsRutas:
     
     def generar_pdf_individual(self, ruta_nombre, datos_ruta, elaborado_por=None, dictamen=None, lotes_personalizados=None):
         """
-        ⭐ MÉTODO CORREGIDO: Ahora USA la paginación de 4 filas por página
+        ⭐ FIX MÍNIMO: Solo corregir la paginación sin cambiar orientación
         """
         buffer = BytesIO()
         
@@ -61,11 +61,14 @@ class GeneradorPDFsRutas:
         if dictamen:
             programa_info['dictamen'] = dictamen
         
-        # ⭐ CLAVE: Usar el método de paginación correcto
-        nombre_archivo_temporal = f"temp_guia_{ruta_nombre}.pdf"
+        # Usar método con paginación (MANTENER ORIENTACIÓN ORIGINAL)
+        nombre_archivo_temporal = f"temp_guia_{ruta_nombre.replace('/', '_').replace(' ', '_')}.pdf"
         
         try:
-            # ⭐ LLAMAR AL MÉTODO QUE SÍ PAGINA CORRECTAMENTE
+            print(f"🔄 Generando PDF con paginación para {ruta_nombre}")
+            print(f"📊 Comedores a procesar: {len(datos_ruta['comedores'])}")
+            
+            # ⭐ LLAMAR AL MÉTODO CON PAGINACIÓN (orientación original)
             self.plantilla.generar_pdf_con_paginacion(
                 datos_programa=programa_info,
                 datos_comedores=datos_ruta['comedores'],
@@ -80,14 +83,20 @@ class GeneradorPDFsRutas:
                 with open(nombre_archivo_temporal, 'rb') as temp_file:
                     buffer.write(temp_file.read())
                 # Limpiar archivo temporal
-                os.remove(nombre_archivo_temporal)
+                try:
+                    os.remove(nombre_archivo_temporal)
+                except:
+                    pass
             
             buffer.seek(0)
+            print(f"✅ PDF generado correctamente con paginación")
             return buffer
             
         except Exception as e:
-            print(f"Error generando PDF: {e}")
-            # Fallback: usar el método anterior si falla
+            print(f"❌ Error generando PDF con paginación: {e}")
+            print(f"🔄 Intentando con método original...")
+            
+            # ⭐ SI FALLA, usar el método original SIN paginación como último recurso
             return self._generar_pdf_fallback(ruta_nombre, datos_ruta, elaborado_por, dictamen, lotes_personalizados)
     
     def _generar_pdf_fallback(self, ruta_nombre, datos_ruta, elaborado_por, dictamen, lotes_personalizados):
@@ -114,8 +123,8 @@ class GeneradorPDFsRutas:
         programa_info = datos_ruta['programa_info'].copy()
         if dictamen:
             programa_info['dictamen'] = dictamen
-        numero_guia = self.generar_numero_guia(ruta_nombre)
-        elementos.extend(self.plantilla.crear_encabezado(programa_info, numero_guia))
+        
+       
         
         # 2. Tabla de encabezados de productos con empresa dinámica
         elementos.append(self.plantilla.crear_tabla_encabezados(programa_info))
@@ -255,7 +264,7 @@ class GeneradorPDFsRutas:
                 'Empresa': datos_ruta['programa_info']['empresa'],
                 'Solicitud_Remesa': datos_ruta['programa_info']['solicitud_remesa'],
                 'Dias_Consumo': datos_ruta['programa_info']['dias_consumo'],
-                'Numero_Guia': self.generar_numero_guia(ruta_nombre)
+                
             })
         
         return pd.DataFrame(reporte)

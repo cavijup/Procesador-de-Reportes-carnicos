@@ -1,12 +1,14 @@
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter, landscape
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image, PageBreak
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch, cm
 from reportlab.pdfgen import canvas
 from datetime import datetime
 import random
 import os
+
+
 
 class PlantillaGuiaTransporte:
     def __init__(self):
@@ -201,49 +203,39 @@ class PlantillaGuiaTransporte:
             html_final = f'<font size="6"><b>{texto_html}</b></font>'
             return Paragraph(html_final, estilo_vertical)
 
-        # ORDEN CORREGIDO: Cerdo, Pechuga, Muslo/Contramuslo, Res
         data = [
             [
                 empresa, '', '', '', '', '',  # 0-5: EMPRESA
-                crear_writing_mode_real('CARNE DE CERDO, MAGRA / KG'),               # 6: Cerdo
-                crear_writing_mode_real('CARNE DE CERDO, MAGRA / KG'),               # 7: Cerdo
-                crear_writing_mode_real('TEMPERATURA PROMEDIO'),                      # 8: Cerdo °C
-                crear_writing_mode_real('PECHUGA DE POLLO / KG'),                    # 9: Pechuga
-                crear_writing_mode_real('PECHUGA DE POLLO / KG'),                    # 10: Pechuga
-                crear_writing_mode_real('TEMPERATURA PROMEDIO'),                      # 11: Pechuga °C
-                crear_writing_mode_real('MUSLO/CONTRAMUSLO DE POLLO / UND'),         # 12: Muslo/Contramuslo
-                crear_writing_mode_real('MUSLO/CONTRAMUSLO DE POLLO / UND'),         # 13: Muslo/Contramuslo 
-                crear_writing_mode_real('TEMPERATURA PROMEDIO'),                      # 14: Muslo/Contramuslo °C
-                crear_writing_mode_real('CARNE DE RES, MAGRA / KG'),                 # 15: Res
-                crear_writing_mode_real('CARNE DE RES, MAGRA / KG'),                 # 16: Res
-                crear_writing_mode_real('TEMPERATURA PROMEDIO'),                      # 17: Res °C
-                'FIRMA\nDE\nRECIBO',                                                 # 18
-                'HORA\nDE\nENTREGA'                                                  # 19
+                crear_writing_mode_real('CARNE DE CERDO, MAGRA / KG'),
+                crear_writing_mode_real('CARNE DE CERDO, MAGRA / KG'),
+                crear_writing_mode_real('TEMPERATURA PROMEDIO'),
+                crear_writing_mode_real('PECHUGA DE POLLO / KG'),
+                crear_writing_mode_real('PECHUGA DE POLLO / KG'),
+                crear_writing_mode_real('TEMPERATURA PROMEDIO'),
+                crear_writing_mode_real('MUSLO/CONTRAMUSLO DE POLLO / UND'),
+                crear_writing_mode_real('MUSLO/CONTRAMUSLO DE POLLO / UND'),
+                crear_writing_mode_real('TEMPERATURA PROMEDIO'),
+                crear_writing_mode_real('CARNE DE RES, MAGRA / KG'),
+                crear_writing_mode_real('CARNE DE RES, MAGRA / KG'),
+                crear_writing_mode_real('TEMPERATURA PROMEDIO'),
+                'FIRMA\nDE\nRECIBO',
+                'HORA\nDE\nENTREGA'
             ],
-            
-            # SEGUNDA FILA - Encabezados cortos
-            ['', '', '', '', '', '',
-             'CANT', 'LOTE', '°C',      # Cerdo
-             'CANT', 'LOTE', '°C',      # Pechuga
-             'CANT', 'LOTE', '°C',      # Muslo/Contramuslo
-             'CANT', 'LOTE', '°C',      # Res
-             '', 'HH:MM']
+            ['', '', '', '', '', '', 'CANT', 'LOTE', '°C', 'CANT', 'LOTE', '°C', 'CANT', 'LOTE', '°C', 'CANT', 'LOTE', '°C', '', 'HH:MM']
         ]
-
-        tabla = Table(data, colWidths=[
-            0.5*cm,  # N° 
-            1.3*cm,  # MUNICIPIO 
-            1.3*cm,  # DEPARTAMENTO   
-            3.8*cm,  # COMEDOR/ESCUELA 
-            0.9*cm,  # COBER 
-            3.0*cm,  # DIRECCIÓN 
-            1.2*cm, 1.4*cm, 1.0*cm,  # Cerdo
-            1.2*cm, 1.4*cm, 1.0*cm,  # Pechuga
-            1.2*cm, 1.4*cm, 1.0*cm,  # Muslo/Contramuslo
-            1.2*cm, 1.4*cm, 1.0*cm,  # Res
-            2.2*cm, 1.4*cm           # Firma y hora
-        ], 
-        rowHeights=[None, None])  # Altura automática para ambas filas
+        
+        # <<< AJUSTADO: Anchos de columna para caber en página horizontal.
+        # Suma total: 25.7 cm (menor que el ancho útil de 25.94 cm)
+        anchos_columna = [
+            0.5*cm, 1.3*cm, 1.3*cm, 3.4*cm, 1.0*cm, 2.9*cm,
+            1.0*cm, 1.2*cm, 0.8*cm,  # Cerdo
+            1.0*cm, 1.2*cm, 0.8*cm,  # Pechuga
+            1.0*cm, 1.2*cm, 0.8*cm,  # Muslo/Contramuslo
+            1.0*cm, 1.2*cm, 0.8*cm,  # Res
+            2.2*cm, 1.3*cm
+        ]
+        
+        tabla = Table(data, colWidths=anchos_columna, rowHeights=[None, None])
 
         tabla.setStyle(TableStyle([
             ('FONTSIZE', (0, 0), (-1, -1), 7),
@@ -253,15 +245,13 @@ class PlantillaGuiaTransporte:
             ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
             ('BACKGROUND', (0, 0), (-1, 1), colors.lightgrey),
             ('FONTNAME', (0, 0), (-1, 1), 'Helvetica-Bold'),
-            # Combinaciones de celdas
-            ('SPAN', (0, 0), (5, 1)),    # EMPRESA 2x6 (posiciones 0-5)
-            ('SPAN', (18, 0), (18, 1)),  # FIRMA vertical (posición 18)
-            # ESTILOS ESPECÍFICOS PARA WRITING MODE VERTICAL
+            ('SPAN', (0, 0), (5, 1)),
+            ('SPAN', (18, 0), (18, 1)),
             ('VALIGN', (6, 0), (17, 0), 'MIDDLE'),
             ('LEFTPADDING', (6, 0), (17, 0), 3),
             ('RIGHTPADDING', (6, 0), (17, 0), 3),
             ('TOPPADDING', (6, 0), (17, 0), 5),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), -1),  # Espacio inferior mínimo en toda la tabla
+            ('BOTTOMPADDING', (0, 0), (-1, -1), -1),
         ]))
 
         return tabla
@@ -400,17 +390,12 @@ class PlantillaGuiaTransporte:
 
         # CREAR LA TABLA CON ANCHOS ESPECÍFICOS
         tabla = Table(data, colWidths=[
-            0.5*cm,  # N°
-            1.3*cm,  # MUNICIPIO
-            1.3*cm,  # DEPARTAMENTO
-            3.8*cm,  # COMEDOR/ESCUELA
-            0.9*cm,  # COBER
-            3.0*cm,  # DIRECCIÓN
-            1.2*cm, 1.4*cm, 1.0*cm,  # Cerdo: KG, LOTE, °C
-            1.2*cm, 1.4*cm, 1.0*cm,  # Pechuga: KG, LOTE, °C
-            1.2*cm, 1.4*cm, 1.0*cm,  # Muslo/Contramuslo: UND, LOTE, °C
-            1.2*cm, 1.4*cm, 1.0*cm,  # Res: KG, LOTE, °C
-            2.2*cm, 1.4*cm           # FIRMA, HORA
+            0.5*cm, 1.3*cm, 1.3*cm, 3.4*cm, 1.0*cm, 2.9*cm,
+            1.0*cm, 1.2*cm, 0.8*cm,  # Cerdo
+            1.0*cm, 1.2*cm, 0.8*cm,  # Pechuga
+            1.0*cm, 1.2*cm, 0.8*cm,  # Muslo/Contramuslo
+            1.0*cm, 1.2*cm, 0.8*cm,  # Res
+            2.2*cm, 1.3*cm         # FIRMA, HORA
         ], rowHeights=[None for _ in range(len(data))])  # Altura automática para todas las filas
 
         # APLICAR ESTILOS
@@ -575,57 +560,135 @@ class PlantillaGuiaTransporte:
 
     def generar_pdf_con_paginacion(self, datos_programa, datos_comedores, lotes_personalizados=None, elaborado_por="____________________", nombre_archivo="guia_transporte.pdf"):
         """
-        Genera el PDF con encabezado y pie constantes en cada página, y tabla principal paginada (máximo 4 filas por página).
+        ⭐ VERSIÓN CORREGIDA: Con medidas EXACTAS del código original
         """
-        from reportlab.platypus import SimpleDocTemplate, PageTemplate, Frame, Spacer
-        from reportlab.lib.pagesizes import letter
+        
+        try:
+            print(f"🔧 Iniciando paginación con medidas originales para {len(datos_comedores)} comedores")
+            
+            # Dividir comedores en bloques de 4
+            bloques = [datos_comedores[i:i+4] for i in range(0, len(datos_comedores), 4)]
+            print(f"📦 Bloques creados: {len(bloques)}")
+            
+            # Calcular totales
+            total_cobertura = sum(int(comedor.get('COBER', 0) or 0) for comedor in datos_comedores)
+            total_cerdo = sum(float(comedor.get('CARNE_DE_CERDO', 0) or 0) for comedor in datos_comedores)
+            total_pollo = sum(float(comedor.get('POLLO_PESO', 0) or 0) for comedor in datos_comedores)
+            total_muslo_contramuslo = sum(int(comedor.get('MUSLO_CONTRAMUSLO', 0) or 0) for comedor in datos_comedores)
+            total_res = sum(float(comedor.get('CARNE_DE_RES', 0) or 0) for comedor in datos_comedores)
+            
+            # ⭐ CONFIGURACIÓN EXACTA DEL CÓDIGO ORIGINAL
+            margen_izq = 1 * cm    # ⭐ ORIGINAL
+            margen_der = 1 * cm    # ⭐ ORIGINAL  
+            margen_sup = 1 * cm    # ⭐ ORIGINAL
+            margen_inf = 1 * cm    # ⭐ ORIGINAL
+            ancho_pagina, alto_pagina = landscape(letter)  
+            ancho_frame = ancho_pagina - margen_izq - margen_der
+            alto_frame = alto_pagina - margen_sup - margen_inf
+
+            doc = SimpleDocTemplate(
+                nombre_archivo, 
+                pagesize=landscape(letter), 
+                leftMargin=margen_izq,    # ⭐ 1.5cm como original
+                rightMargin=margen_der,   # ⭐ 1.5cm como original
+                topMargin=margen_sup,     # ⭐ 1.5cm como original
+                bottomMargin=margen_inf   # ⭐ 1.5cm como original
+            )
+            
+            story = []
+            
+            # ⭐ Generar número de guía simple
+            fecha_actual = datetime.now().strftime('%m%d')
+            numero_guia = f"{fecha_actual}-001"
+            
+            # Procesar cada bloque
+            for idx, bloque in enumerate(bloques):
+                es_ultima_pagina = (idx == len(bloques) - 1)
+                print(f"📄 Procesando bloque {idx+1}/{len(bloques)} con {len(bloque)} comedores")
+                
+                # 1. Encabezado
+                story.extend(self.crear_encabezado(datos_programa, numero_guia))
+                
+                # 2. Tabla de encabezados de productos
+                story.append(self.crear_tabla_encabezados(datos_programa))
+                
+                # 3. Sección de ruta
+                story.extend(self.crear_seccion_ruta("RUTA 1"))
+                
+                # 4. Tabla de comedores del bloque actual
+                if es_ultima_pagina:
+                    tabla_comedores = self._crear_tabla_comedores_con_totales_paginada_original(
+                        bloque, total_cobertura, total_cerdo, total_pollo, 
+                        total_muslo_contramuslo, total_res, lotes_personalizados, idx
+                    )
+                else:
+                    tabla_comedores = self._crear_tabla_comedores_sin_totales_paginada_original(
+                        bloque, lotes_personalizados, idx
+                    )
+                
+                story.append(tabla_comedores)
+                
+                # 5. Sección adicional
+                story.extend(self.crear_seccion_adicional())
+                
+                # 6. Pie de página  
+                story.extend(self.crear_pie_pagina(elaborado_por))
+                
+                # 7. Salto de página (excepto en la última)
+                if not es_ultima_pagina:
+                    story.append(PageBreak())
+            
+            # Construir PDF
+            doc.build(story)
+            print(f"✅ PDF paginado construido exitosamente con medidas originales")
+            
+        except Exception as e:
+            print(f"❌ Error en paginación corregida: {e}")
+            import traceback
+            traceback.print_exc()
+            raise
+
+    def _crear_tabla_comedores_sin_totales_paginada_original(self, comedores_bloque, lotes_personalizados, numero_bloque):
+        """
+        ⭐ TABLA SIN TOTALES - Con función dividir_texto_inteligente ORIGINAL
+        """
+        from reportlab.platypus import Table, TableStyle
+        from reportlab.lib import colors
         from reportlab.lib.units import cm
-
-        # Configuración de documento y frames
-        margen_izq = 1.5 * cm
-        margen_der = 1.5 * cm
-        margen_sup = 1.5 * cm
-        margen_inf = 1.5 * cm
-        ancho_pagina, alto_pagina = letter
-        ancho_frame = ancho_pagina - margen_izq - margen_der
-        alto_frame = alto_pagina - margen_sup - margen_inf
-
-        doc = SimpleDocTemplate(nombre_archivo, pagesize=letter,
-                               leftMargin=margen_izq, rightMargin=margen_der,
-                               topMargin=margen_sup, bottomMargin=margen_inf)
-
-        # Funciones para encabezado y pie
-        def dibujar_encabezado(canvas, doc):
-            canvas.saveState()
-            # Encabezado: dibujar en la parte superior
-            encabezado = self.crear_encabezado(datos_programa)
-            tabla_encabezado = self.crear_tabla_encabezados(datos_programa)
-            w, h = tabla_encabezado.wrap(doc.width, doc.topMargin)
-            y = alto_pagina - margen_sup
-            for elemento in encabezado:
-                elemento.wrapOn(canvas, doc.width, doc.topMargin)
-                elemento.drawOn(canvas, margen_izq, y)
-                y -= elemento.getSpaceAfter() + elemento.getSpaceBefore() + (elemento.height if hasattr(elemento, 'height') else 10)
-            tabla_encabezado.wrapOn(canvas, doc.width, doc.topMargin)
-            tabla_encabezado.drawOn(canvas, margen_izq, y - h)
-            canvas.restoreState()
-
-        def dibujar_pie(canvas, doc):
-            canvas.saveState()
-            pie = self.crear_pie_pagina(elaborado_por)
-            y = margen_inf
-            for elemento in pie:
-                elemento.wrapOn(canvas, doc.width, doc.bottomMargin)
-                elemento.drawOn(canvas, margen_izq, y)
-                y += elemento.getSpaceAfter() + elemento.getSpaceBefore() + (elemento.height if hasattr(elemento, 'height') else 10)
-            canvas.restoreState()
-
-        # Crear PageTemplate con encabezado y pie
-        frame = Frame(margen_izq, margen_inf, ancho_frame, alto_frame - 6*cm, id='normal')
-        plantilla = PageTemplate(id='GuiaTransporte', frames=[frame], onPage=dibujar_encabezado, onPageEnd=dibujar_pie)
-        doc.addPageTemplates([plantilla])
-
-        # Dividir datos en bloques de 4 filas (sin contar encabezado ni totales)
+        
+        def dividir_texto_inteligente(texto, max_chars_por_linea=20, max_lineas=3):
+            """⭐ FUNCIÓN ORIGINAL EXACTA de tu código"""
+            if not texto or len(str(texto)) <= max_chars_por_linea:
+                return str(texto)
+            
+            texto_str = str(texto).strip()
+            palabras = texto_str.split()
+            lineas = []
+            linea_actual = ""
+            
+            for palabra in palabras:
+                if linea_actual and len(linea_actual + " " + palabra) > max_chars_por_linea:
+                    lineas.append(linea_actual)
+                    linea_actual = palabra
+                else:
+                    if linea_actual:
+                        linea_actual += " " + palabra
+                    else:
+                        linea_actual = palabra
+            
+            if linea_actual:
+                lineas.append(linea_actual)
+            
+            if len(lineas) > max_lineas:
+                lineas = lineas[:max_lineas]
+                if len(lineas[max_lineas-1]) <= max_chars_por_linea - 3:
+                    lineas[max_lineas-1] += "..."
+                else:
+                    lineas[max_lineas-1] = lineas[max_lineas-1][:max_chars_por_linea-3] + "..."
+            
+            return "\n".join(lineas)
+        
+        # ⭐ ENCABEZADO ORIGINAL EXACTO
         encabezado = [
             'N°', 'MUNICIPIO', 'DEPARTA\nMENTO', 'COMEDOR / ESCUELA', 'COBER', 'DIRECCIÓN',
             'KG', 'LOTE', '°C',      # Carne de cerdo
@@ -635,121 +698,288 @@ class PlantillaGuiaTransporte:
             'FIRMA DE RECIBO', 'HORA'
         ]
         
-        filas = []
-        for i, comedor in enumerate(datos_comedores, 1):
+        data = [encabezado]
+        
+        # Calcular numeración correcta (empezar desde 1 para primer bloque)
+        numero_inicial = (numero_bloque * 4) + 1
+        
+        for i, comedor in enumerate(comedores_bloque):
+            numero_comedor = numero_inicial + i
+            
+            # Obtener datos de los productos
             cerdo_peso = float(comedor.get('CARNE_DE_CERDO', 0) or 0)
             pollo_peso = float(comedor.get('POLLO_PESO', 0) or 0)
             muslo_contramuslo_und = int(comedor.get('MUSLO_CONTRAMUSLO', 0) or 0)
             res_peso = float(comedor.get('CARNE_DE_RES', 0) or 0)
+            
+            # Usar lotes personalizados si están presentes
             lotes = lotes_personalizados or {}
             
             fila = [
-                str(i),
+                str(numero_comedor),
                 comedor.get('MUNICIPIO', 'CALI'),
                 comedor.get('DEPARTAMENTO', 'VALLE'),
-                self.dividir_lote_inteligente(comedor.get('COMEDOR/ESCUELA', ''), max_chars_por_linea=25),
+                dividir_texto_inteligente(comedor.get('COMEDOR/ESCUELA', ''), max_chars_por_linea=25, max_lineas=3),
                 str(comedor.get('COBER', 0)),
-                self.dividir_lote_inteligente(comedor.get('DIRECCIÓN', ''), max_chars_por_linea=20),
+                dividir_texto_inteligente(comedor.get('DIRECCIÓN', ''), max_chars_por_linea=20, max_lineas=3),
+                # 1. Carne de cerdo (columnas 6-8)
                 f"{cerdo_peso:.2f}" if cerdo_peso > 0 else "",
                 self.dividir_lote_inteligente(lotes.get('cerdo') if cerdo_peso > 0 and lotes.get('cerdo') else (str(self.generar_lote_aleatorio()) if cerdo_peso > 0 else "")),
                 f"{self.generar_temperatura_aleatoria()}°C" if cerdo_peso > 0 else "",
+                # 2. Pechuga de pollo (columnas 9-11)
                 f"{pollo_peso:.2f}" if pollo_peso > 0 else "",
                 self.dividir_lote_inteligente(lotes.get('pechuga') if pollo_peso > 0 and lotes.get('pechuga') else (str(self.generar_lote_aleatorio()) if pollo_peso > 0 else "")),
                 f"{self.generar_temperatura_aleatoria()}°C" if pollo_peso > 0 else "",
+                # 3. Muslo/Contramuslo (columnas 12-14)
                 str(muslo_contramuslo_und) if muslo_contramuslo_und > 0 else "",
                 self.dividir_lote_inteligente(lotes.get('muslo') if muslo_contramuslo_und > 0 and lotes.get('muslo') else (str(self.generar_lote_aleatorio()) if muslo_contramuslo_und > 0 else "")),
                 f"{self.generar_temperatura_aleatoria()}°C" if muslo_contramuslo_und > 0 else "",
+                # 4. Carne de res (columnas 15-17)
                 f"{res_peso:.2f}" if res_peso > 0 else "",
                 self.dividir_lote_inteligente(lotes.get('res') if res_peso > 0 and lotes.get('res') else (str(self.generar_lote_aleatorio()) if res_peso > 0 else "")),
                 f"{self.generar_temperatura_aleatoria()}°C" if res_peso > 0 else "",
+                # 5. Firma y hora (columnas 18-19)
                 '',  # FIRMA DE RECIBO
                 ''   # HORA DE ENTREGA
             ]
-            filas.append(fila)
+            
+            data.append(fila)
 
-        # Paginación: bloques de 4 filas
-        bloques = [filas[i:i+4] for i in range(0, len(filas), 4)]
+        # ⭐ CREAR LA TABLA CON ANCHOS ORIGINALES EXACTOS
+        tabla = Table(data, colWidths=[
+            0.5*cm, 1.3*cm, 1.3*cm, 3.4*cm, 1.0*cm, 2.9*cm,
+            1.0*cm, 1.2*cm, 0.8*cm,  # Cerdo
+            1.0*cm, 1.2*cm, 0.8*cm,  # Pechuga
+            1.0*cm, 1.2*cm, 0.8*cm,  # Muslo/Contramuslo
+            1.0*cm, 1.2*cm, 0.8*cm,  # Res
+            2.2*cm, 1.3*cm
+        ], rowHeights=[None for _ in range(len(data))])  # ⭐ ALTURA AUTOMÁTICA ORIGINAL
 
-        # Calcular totales
-        total_cobertura = sum(int(f[4]) if f[4] else 0 for f in filas)
-        total_cerdo = sum(float(f[6]) if f[6] else 0 for f in filas)
-        total_pollo = sum(float(f[9]) if f[9] else 0 for f in filas)
-        total_muslo_contramuslo = sum(int(f[12]) if f[12] else 0 for f in filas)
-        total_res = sum(float(f[15]) if f[15] else 0 for f in filas)
-
-        fila_total = [
-            'TOTAL COBERTURA RUTA', '', '', '',
-            f"{total_cobertura:,}", '',
-            f"{total_cerdo:.2f}" if total_cerdo > 0 else "", '', '',
-            f"{total_pollo:.2f}" if total_pollo > 0 else "", '', '',
-            f"{total_muslo_contramuslo}" if total_muslo_contramuslo > 0 else "", '', '',
-            f"{total_res:.2f}" if total_res > 0 else "", '', '',
-            '', ''
+        # ⭐ APLICAR ESTILOS ORIGINALES EXACTOS
+        style = [
+            ('FONTSIZE', (0, 0), (-1, -1), 7),
+            ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), -1),  # ⭐ PADDING ORIGINAL
+            # Estilo del encabezado
+            ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            # Alineación especial para algunas columnas
+            ('ALIGN', (0, 1), (0, -1), 'CENTER'),  # Números
+            ('ALIGN', (4, 1), (4, -1), 'RIGHT'),   # Cobertura
+            ('ALIGN', (6, 1), (6, -1), 'RIGHT'),   # KG Cerdo
+            ('ALIGN', (9, 1), (9, -1), 'RIGHT'),   # KG Pechuga
+            ('ALIGN', (12, 1), (12, -1), 'RIGHT'), # UND Muslo/Contramuslo
+            ('ALIGN', (15, 1), (15, -1), 'RIGHT'), # KG Res
+            # AJUSTES ESPECIALES PARA COMEDOR/ESCUELA (columna 3)
+            ('FONTSIZE', (3, 1), (3, -1), 6),
+            ('ALIGN', (3, 1), (3, -1), 'LEFT'),
+            ('VALIGN', (3, 1), (3, -1), 'TOP'),
+            ('LEFTPADDING', (3, 1), (3, -1), 2),
+            ('RIGHTPADDING', (3, 1), (3, -1), 2),
+            # AJUSTES ESPECIALES PARA DIRECCIÓN (columna 5)
+            ('FONTSIZE', (5, 1), (5, -1), 6),
+            ('ALIGN', (5, 1), (5, -1), 'LEFT'),
+            ('VALIGN', (5, 1), (5, -1), 'TOP'),
+            ('LEFTPADDING', (5, 1), (5, -1), 2),
+            ('RIGHTPADDING', (5, 1), (5, -1), 2),
+            # ESTILOS PARA COLUMNAS DE LOTES
+            ('FONTSIZE', (7, 1), (7, -1), 6),    # Lote Cerdo (columna 7)
+            ('FONTSIZE', (10, 1), (10, -1), 6),  # Lote Pechuga (columna 10)
+            ('FONTSIZE', (13, 1), (13, -1), 6),  # Lote Muslo (columna 13)
+            ('FONTSIZE', (16, 1), (16, -1), 6),  # Lote Res (columna 16)
+            ('VALIGN', (7, 1), (7, -1), 'TOP'),   # Alineación vertical superior
+            ('VALIGN', (10, 1), (10, -1), 'TOP'),
+            ('VALIGN', (13, 1), (13, -1), 'TOP'),
+            ('VALIGN', (16, 1), (16, -1), 'TOP'),
+            ('LEFTPADDING', (7, 1), (7, -1), 2),  # Padding reducido
+            ('RIGHTPADDING', (7, 1), (7, -1), 2),
+            ('LEFTPADDING', (10, 1), (10, -1), 2),
+            ('RIGHTPADDING', (10, 1), (10, -1), 2),
+            ('LEFTPADDING', (13, 1), (13, -1), 2),
+            ('RIGHTPADDING', (13, 1), (13, -1), 2),
+            ('LEFTPADDING', (16, 1), (16, -1), 2),
+            ('RIGHTPADDING', (16, 1), (16, -1), 2)
         ]
-
-        # Crear story (contenido del PDF)
-        story = []
-        for idx, bloque in enumerate(bloques):
-            data_tabla = [encabezado] + bloque
-            # Solo en la última página agregar la fila de totales
-            if idx == len(bloques) - 1:
-                data_tabla.append(fila_total)
                 
-            tabla = Table(data_tabla, colWidths=[
-                0.5*cm, 1.3*cm, 1.3*cm, 3.8*cm, 0.9*cm, 3.0*cm,
-                1.2*cm, 1.4*cm, 1.0*cm, 1.2*cm, 1.4*cm, 1.0*cm,
-                1.2*cm, 1.4*cm, 1.0*cm, 1.2*cm, 1.4*cm, 1.0*cm,
-                2.2*cm, 1.4*cm
-            ], rowHeights=[None for _ in range(len(data_tabla))])
-            
-            tabla.setStyle(TableStyle([
-                ('FONTSIZE', (0, 0), (-1, -1), 7),
-                ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
-                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-                ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
-                ('BOTTOMPADDING', (0, 0), (-1, -1), -1),
-                ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
-                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('BACKGROUND', (0, -1), (-1, -1), colors.lightblue) if idx == len(bloques) - 1 else (),
-                ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold') if idx == len(bloques) - 1 else (),
-                ('SPAN', (0, -1), (3, -1)) if idx == len(bloques) - 1 else (),
-                ('ALIGN', (0, 1), (0, -2), 'CENTER'),
-                ('ALIGN', (4, 1), (4, -2), 'RIGHT'),
-                ('ALIGN', (6, 1), (6, -2), 'RIGHT'),
-                ('ALIGN', (9, 1), (9, -2), 'RIGHT'),
-                ('ALIGN', (12, 1), (12, -2), 'RIGHT'),
-                ('ALIGN', (15, 1), (15, -2), 'RIGHT'),
-                ('FONTSIZE', (3, 1), (3, -2), 6),
-                ('ALIGN', (3, 1), (3, -2), 'LEFT'),
-                ('VALIGN', (3, 1), (3, -2), 'TOP'),
-                ('LEFTPADDING', (3, 1), (3, -2), 2),
-                ('RIGHTPADDING', (3, 1), (3, -2), 2),
-                ('FONTSIZE', (5, 1), (5, -2), 6),
-                ('ALIGN', (5, 1), (5, -2), 'LEFT'),
-                ('VALIGN', (5, 1), (5, -2), 'TOP'),
-                ('LEFTPADDING', (5, 1), (5, -2), 2),
-                ('RIGHTPADDING', (5, 1), (5, -2), 2),
-                ('FONTSIZE', (7, 1), (7, -2), 6),
-                ('FONTSIZE', (10, 1), (10, -2), 6),
-                ('FONTSIZE', (13, 1), (13, -2), 6),
-                ('FONTSIZE', (16, 1), (16, -2), 6),
-                ('VALIGN', (7, 1), (7, -2), 'TOP'),
-                ('VALIGN', (10, 1), (10, -2), 'TOP'),
-                ('VALIGN', (13, 1), (13, -2), 'TOP'),
-                ('VALIGN', (16, 1), (16, -2), 'TOP'),
-                ('LEFTPADDING', (7, 1), (7, -2), 2),
-                ('RIGHTPADDING', (7, 1), (7, -2), 2),
-                ('LEFTPADDING', (10, 1), (10, -2), 2),
-                ('RIGHTPADDING', (10, 1), (10, -2), 2),
-                ('LEFTPADDING', (13, 1), (13, -2), 2),
-                ('RIGHTPADDING', (13, 1), (13, -2), 2),
-                ('LEFTPADDING', (16, 1), (16, -2), 2),
-                ('RIGHTPADDING', (16, 1), (16, -2), 2),
-            ]))
-            
-            story.append(tabla)
-            if idx < len(bloques) - 1:
-                story.append(Spacer(1, 0.5*cm))
+        tabla.setStyle(TableStyle(style))
+        return tabla
 
-        doc.build(story)
+    def _crear_tabla_comedores_con_totales_paginada_original(self, comedores_bloque, total_cobertura, total_cerdo, total_pollo, total_muslo_contramuslo, total_res, lotes_personalizados, numero_bloque):
+        """
+        ⭐ TABLA CON TOTALES - Con configuración original exacta
+        """
+        from reportlab.platypus import Table, TableStyle
+        from reportlab.lib import colors
+        from reportlab.lib.units import cm
+        
+        def dividir_texto_inteligente(texto, max_chars_por_linea=20, max_lineas=3):
+            """⭐ FUNCIÓN ORIGINAL EXACTA de tu código"""
+            if not texto or len(str(texto)) <= max_chars_por_linea:
+                return str(texto)
+            
+            texto_str = str(texto).strip()
+            palabras = texto_str.split()
+            lineas = []
+            linea_actual = ""
+            
+            for palabra in palabras:
+                if linea_actual and len(linea_actual + " " + palabra) > max_chars_por_linea:
+                    lineas.append(linea_actual)
+                    linea_actual = palabra
+                else:
+                    if linea_actual:
+                        linea_actual += " " + palabra
+                    else:
+                        linea_actual = palabra
+            
+            if linea_actual:
+                lineas.append(linea_actual)
+            
+            if len(lineas) > max_lineas:
+                lineas = lineas[:max_lineas]
+                if len(lineas[max_lineas-1]) <= max_chars_por_linea - 3:
+                    lineas[max_lineas-1] += "..."
+                else:
+                    lineas[max_lineas-1] = lineas[max_lineas-1][:max_chars_por_linea-3] + "..."
+            
+            return "\n".join(lineas)
+        
+        # ⭐ ENCABEZADO ORIGINAL EXACTO
+        encabezado = [
+            'N°', 'MUNICIPIO', 'DEPARTA\nMENTO', 'COMEDOR / ESCUELA', 'COBER', 'DIRECCIÓN',
+            'KG', 'LOTE', '°C',      # Carne de cerdo
+            'KG', 'LOTE', '°C',      # Pechuga de pollo  
+            'UND', 'LOTE', '°C',     # Muslo/Contramuslo
+            'KG', 'LOTE', '°C',      # Carne de res
+            'FIRMA DE RECIBO', 'HORA'
+        ]
+        
+        data = [encabezado]
+        
+        # Agregar comedores del bloque
+        numero_inicial = (numero_bloque * 4) + 1
+        for i, comedor in enumerate(comedores_bloque):
+            numero_comedor = numero_inicial + i
+            
+            # Obtener datos de los productos
+            cerdo_peso = float(comedor.get('CARNE_DE_CERDO', 0) or 0)
+            pollo_peso = float(comedor.get('POLLO_PESO', 0) or 0)
+            muslo_contramuslo_und = int(comedor.get('MUSLO_CONTRAMUSLO', 0) or 0)
+            res_peso = float(comedor.get('CARNE_DE_RES', 0) or 0)
+            
+            # Usar lotes personalizados si están presentes
+            lotes = lotes_personalizados or {}
+            
+            fila = [
+                str(numero_comedor),
+                comedor.get('MUNICIPIO', 'CALI'),
+                comedor.get('DEPARTAMENTO', 'VALLE'),
+                dividir_texto_inteligente(comedor.get('COMEDOR/ESCUELA', ''), max_chars_por_linea=25, max_lineas=3),
+                str(comedor.get('COBER', 0)),
+                dividir_texto_inteligente(comedor.get('DIRECCIÓN', ''), max_chars_por_linea=20, max_lineas=3),
+                # 1. Carne de cerdo (columnas 6-8)
+                f"{cerdo_peso:.2f}" if cerdo_peso > 0 else "",
+                self.dividir_lote_inteligente(lotes.get('cerdo') if cerdo_peso > 0 and lotes.get('cerdo') else (str(self.generar_lote_aleatorio()) if cerdo_peso > 0 else "")),
+                f"{self.generar_temperatura_aleatoria()}°C" if cerdo_peso > 0 else "",
+                # 2. Pechuga de pollo (columnas 9-11)
+                f"{pollo_peso:.2f}" if pollo_peso > 0 else "",
+                self.dividir_lote_inteligente(lotes.get('pechuga') if pollo_peso > 0 and lotes.get('pechuga') else (str(self.generar_lote_aleatorio()) if pollo_peso > 0 else "")),
+                f"{self.generar_temperatura_aleatoria()}°C" if pollo_peso > 0 else "",
+                # 3. Muslo/Contramuslo (columnas 12-14)
+                str(muslo_contramuslo_und) if muslo_contramuslo_und > 0 else "",
+                self.dividir_lote_inteligente(lotes.get('muslo') if muslo_contramuslo_und > 0 and lotes.get('muslo') else (str(self.generar_lote_aleatorio()) if muslo_contramuslo_und > 0 else "")),
+                f"{self.generar_temperatura_aleatoria()}°C" if muslo_contramuslo_und > 0 else "",
+                # 4. Carne de res (columnas 15-17)
+                f"{res_peso:.2f}" if res_peso > 0 else "",
+                self.dividir_lote_inteligente(lotes.get('res') if res_peso > 0 and lotes.get('res') else (str(self.generar_lote_aleatorio()) if res_peso > 0 else "")),
+                f"{self.generar_temperatura_aleatoria()}°C" if res_peso > 0 else "",
+                # 5. Firma y hora (columnas 18-19)
+                '',  # FIRMA DE RECIBO
+                ''   # HORA DE ENTREGA
+            ]
+            
+            data.append(fila)
+
+        # ⭐ AGREGAR FILA DE TOTALES (código original exacto)
+        fila_total = [
+            'TOTAL COBERTURA RUTA', '', '', '',     # Posiciones 0-3 combinadas
+            f"{total_cobertura:,}", '',             # Posiciones 4-5
+            f"{total_cerdo:.2f}" if total_cerdo > 0 else "", '', '',           # Total cerdo (6-8)
+            f"{total_pollo:.2f}" if total_pollo > 0 else "", '', '',           # Total pechuga (9-11)
+            f"{total_muslo_contramuslo}" if total_muslo_contramuslo > 0 else "", '', '',   # Total muslo/contramuslo (12-14)
+            f"{total_res:.2f}" if total_res > 0 else "", '', '',             # Total res (15-17)
+            '', ''                                  # Firma y hora (18-19)
+        ]
+        data.append(fila_total)
+
+        # ⭐ CREAR LA TABLA CON ANCHOS ORIGINALES EXACTOS
+        tabla = Table(data, colWidths=[
+            0.5*cm, 1.3*cm, 1.3*cm, 3.4*cm, 1.0*cm, 2.9*cm,
+            1.0*cm, 1.2*cm, 0.8*cm,  # Cerdo
+            1.0*cm, 1.2*cm, 0.8*cm,  # Pechuga
+            1.0*cm, 1.2*cm, 0.8*cm,  # Muslo/Contramuslo
+            1.0*cm, 1.2*cm, 0.8*cm,  # Res
+            2.2*cm, 1.3*cm
+        ], rowHeights=[None for _ in range(len(data))])  # ⭐ ALTURA AUTOMÁTICA ORIGINAL
+
+        # ⭐ APLICAR ESTILOS ORIGINALES EXACTOS + Totales
+        style = [
+            ('FONTSIZE', (0, 0), (-1, -1), 7),
+            ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), -1),  # ⭐ PADDING ORIGINAL
+            # Estilo del encabezado
+            ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            # Alineación especial para algunas columnas
+            ('ALIGN', (0, 1), (0, -2), 'CENTER'),  # Números
+            ('ALIGN', (4, 1), (4, -2), 'RIGHT'),   # Cobertura
+            ('ALIGN', (6, 1), (6, -2), 'RIGHT'),   # KG Cerdo
+            ('ALIGN', (9, 1), (9, -2), 'RIGHT'),   # KG Pechuga
+            ('ALIGN', (12, 1), (12, -2), 'RIGHT'), # UND Muslo/Contramuslo
+            ('ALIGN', (15, 1), (15, -2), 'RIGHT'), # KG Res
+            # AJUSTES ESPECIALES PARA COMEDOR/ESCUELA (columna 3)
+            ('FONTSIZE', (3, 1), (3, -2), 6),
+            ('ALIGN', (3, 1), (3, -2), 'LEFT'),
+            ('VALIGN', (3, 1), (3, -2), 'TOP'),
+            ('LEFTPADDING', (3, 1), (3, -2), 2),
+            ('RIGHTPADDING', (3, 1), (3, -2), 2),
+            # AJUSTES ESPECIALES PARA DIRECCIÓN (columna 5)
+            ('FONTSIZE', (5, 1), (5, -2), 6),
+            ('ALIGN', (5, 1), (5, -2), 'LEFT'),
+            ('VALIGN', (5, 1), (5, -2), 'TOP'),
+            ('LEFTPADDING', (5, 1), (5, -2), 2),
+            ('RIGHTPADDING', (5, 1), (5, -2), 2),
+            # ESTILOS PARA COLUMNAS DE LOTES
+            ('FONTSIZE', (7, 1), (7, -2), 6),    # Lote Cerdo (columna 7)
+            ('FONTSIZE', (10, 1), (10, -2), 6),  # Lote Pechuga (columna 10)
+            ('FONTSIZE', (13, 1), (13, -2), 6),  # Lote Muslo (columna 13)
+            ('FONTSIZE', (16, 1), (16, -2), 6),  # Lote Res (columna 16)
+            ('VALIGN', (7, 1), (7, -2), 'TOP'),   # Alineación vertical superior
+            ('VALIGN', (10, 1), (10, -2), 'TOP'),
+            ('VALIGN', (13, 1), (13, -2), 'TOP'),
+            ('VALIGN', (16, 1), (16, -2), 'TOP'),
+            ('LEFTPADDING', (7, 1), (7, -2), 2),  # Padding reducido
+            ('RIGHTPADDING', (7, 1), (7, -2), 2),
+            ('LEFTPADDING', (10, 1), (10, -2), 2),
+            ('RIGHTPADDING', (10, 1), (10, -2), 2),
+            ('LEFTPADDING', (13, 1), (13, -2), 2),
+            ('RIGHTPADDING', (13, 1), (13, -2), 2),
+            ('LEFTPADDING', (16, 1), (16, -2), 2),
+            ('RIGHTPADDING', (16, 1), (16, -2), 2)
+        ]
+        
+        # ⭐ ESTILO DE LA FILA DE TOTALES (código original exacto)
+        style += [
+            ('BACKGROUND', (0, -1), (-1, -1), colors.lightblue),
+            ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+            ('SPAN', (0, -1), (3, -1)),
+        ]
+                
+        tabla.setStyle(TableStyle(style))
+        return tabla

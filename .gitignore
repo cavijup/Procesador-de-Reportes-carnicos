@@ -1,0 +1,38 @@
+# Archivos de configuración sensible
+.streamlit/secrets.toml
+secrets.toml
+
+# Archivos temporales de PDF
+*.pdf
+temp_*.pdf
+
+# Imágenes de firmas (privadas)
+imagenes/*.png
+imagenes/*.jpg
+imagenes/*.jpeg
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Excel temporales
+~$*.xlsx

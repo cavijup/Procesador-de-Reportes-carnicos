@@ -591,3 +591,4 @@ class PlantillaGuiaTransporte:
         doc.build(story)
         print(f"PDF generado exitosamente: {nombre_archivo}")
         return nombre_archivo
+    

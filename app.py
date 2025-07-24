@@ -4,13 +4,20 @@ import openpyxl
 from io import BytesIO
 import re
 from datetime import datetime
-
+   
 # Importar los nuevos módulos para PDFs
 try:
     from pdf_generator import integrar_generador_pdf_streamlit
     PDF_DISPONIBLE = True
 except ImportError:
     PDF_DISPONIBLE = False
+# Importar módulo de email (actualizado)
+EMAIL_DISPONIBLE = False
+try:
+    from email_sender import enviar_correo_con_adjuntos, enviar_correo_con_adjunto
+    EMAIL_DISPONIBLE = True
+except ImportError:
+    EMAIL_DISPONIBLE = False
 
 # Configuración de la página
 st.set_page_config(
@@ -662,8 +669,9 @@ def main():
         st.markdown("**Desarrollado para:**  \nTodos los programas CHVS - PAE y Comedores")
     
     # Crear tabs para organizar la funcionalidad
-    tab1, tab2 = st.tabs(["📊 Procesar Datos", "📄 Generar PDFs"])
-    
+    # Crear tabs para organizar la funcionalidad
+    tab1, tab2, tab3 = st.tabs(["📊 Procesar Datos", "📄 Generar PDFs", "📧 Enviar Correos"])
+        
     with tab1:
         # Área principal de procesamiento
         col1, col2 = st.columns([2, 1])
@@ -873,19 +881,18 @@ def main():
             with col2:
                 boton_comedor = st.button("🏪 Un PDF por comedor")
             with col3:
-                nombre_seleccionado = st.selectbox("Elaborado por:", nombres)
-            dictamen_seleccionado = st.selectbox("Dictamen:", dictamenes)
-
+                nombre_seleccionado = st.selectbox("Elaborado por:", nombres, key="pdf_elaborado_por")
+                dictamen_seleccionado = st.selectbox("Dictamen:", dictamenes, key="pdf_dictamen")
             # ⭐ NUEVA SECCIÓN: Configuración de Lotes
             st.subheader("🏷️ Configuración de Lotes (Opcional)")
             st.info("💡 Si no completas estos campos, se generarán lotes automáticamente")
             col_lotes1, col_lotes2 = st.columns(2)
             with col_lotes1:
-                lote_cerdo = st.text_input("🐷 Lote Carne de Cerdo:", placeholder="Ej: CERDO-2025-001")
-                lote_muslo = st.text_input("🐔 Lote Muslo/Contramuslo:", placeholder="Ej: MC-2025-A1")
+                lote_cerdo = st.text_input("🐷 Lote Carne de Cerdo:", placeholder="Ej: CERDO-2025-001", key="pdf_lote_cerdo")
+                lote_muslo = st.text_input("🐔 Lote Muslo/Contramuslo:", placeholder="Ej: MC-2025-A1", key="pdf_lote_muslo")
             with col_lotes2:
-                lote_pechuga = st.text_input("🐔 Lote Pechuga Pollo:", placeholder="Ej: POLLO-240122")
-                lote_res = st.text_input("🐄 Lote Carne de Res:", placeholder="Ej: RES-010225")
+                lote_pechuga = st.text_input("🐔 Lote Pechuga Pollo:", placeholder="Ej: POLLO-240122", key="pdf_lote_pechuga")
+                lote_res = st.text_input("🐄 Lote Carne de Res:", placeholder="Ej: RES-010225", key="pdf_lote_res")
 
             lotes_personalizados = {
                 'cerdo': lote_cerdo.strip() if lote_cerdo.strip() else None,
@@ -940,6 +947,229 @@ def main():
             Luego reinicia la aplicación.
             """)
             st.info("💡 Los PDFs generarán guías de transporte individuales por ruta, basadas en el formato oficial y adaptadas al tipo de archivo detectado.")
+    
+    with tab3:
+        st.header("📧 Enviar Reportes por Correo")
+        
+        if not EMAIL_DISPONIBLE:
+            st.error("🚫 **Funcionalidad de correo no disponible**")
+            st.info("Verifica que el archivo `secrets.toml` esté configurado correctamente.")
+            return
+        
+        if 'df_procesado' not in st.session_state:
+            st.warning("⚠️ Primero procesa un archivo en la pestaña de datos.")
+            return
+        
+        # ⭐ VERIFICAR QUE PDFs ESTÉN DISPONIBLES
+        if not PDF_DISPONIBLE:
+            st.error("🚫 **Para enviar PDFs también necesitas la funcionalidad de PDFs habilitada**")
+            st.info("Instala: `pip install reportlab`")
+            return
+            
+        # Configuración del correo
+        st.subheader("📋 Configuración del Correo")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            destinatarios_text = st.text_area(
+                "📧 Destinatarios (uno por línea):",
+                placeholder="ejemplo1@correo.com\nejemplo2@correo.com",
+                height=100
+            )
+            
+        with col2:
+            asunto = st.text_input(
+                "📝 Asunto:",
+                value=f"Reporte Completo Comedores - {datetime.now().strftime('%Y-%m-%d')}"
+            )
+        
+        # ⭐ CONFIGURACIÓN DE ADJUNTOS
+        st.subheader("📎 Configuración de Adjuntos")
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            incluir_excel = st.checkbox("📊 Incluir archivo Excel", value=True)
+            if incluir_excel:
+                st.success("✅ Se adjuntará el Excel con datos procesados")
+        
+        with col2:
+            incluir_pdfs = st.checkbox("📄 Incluir ZIP de PDFs", value=True)
+            if incluir_pdfs:
+                st.success("✅ Se adjuntará ZIP con guías de transporte en PDF")
+        
+        # ⭐ CONFIGURACIÓN DE PDFs (solo si se van a incluir)
+        if incluir_pdfs:
+            st.subheader("🎯 Configuración de PDFs")
+            
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                modo_pdf = st.radio(
+                    "Modo de PDFs:",
+                    ["📋 Un PDF por ruta", "🏪 Un PDF por comedor"]
+                )
+            
+            with col2:
+                nombres_supervisores = [
+                    "Shirley Paola Ibarra", "Jeferson Soto", "Alexandra Luna", "Alexander Molina",
+                    "Leidy Guzman", "Andres Montenegro", "Isabela Pantoja", "Luis Rodriguez"
+                ]
+                elaborado_por = st.selectbox("Elaborado por:", nombres_supervisores, key="email_elaborado_por")
+            
+            with col3:
+                dictamen = st.selectbox("Dictamen:", ["APROBADO", "APROBADO CONDICIONADO"], key="email_dictamen")
+
+            
+            # Configuración de lotes (opcional)
+            with st.expander("🏷️ Configuración de Lotes (Opcional)"):
+                col_lotes1, col_lotes2 = st.columns(2)
+                with col_lotes1:
+                    lote_cerdo = st.text_input("🐷 Lote Carne de Cerdo:", placeholder="Ej: CERDO-2025-001", key="email_lote_cerdo")
+                    lote_muslo = st.text_input("🐔 Lote Muslo/Contramuslo:", placeholder="Ej: MC-2025-A1", key="email_lote_muslo")
+                with col_lotes2:
+                    lote_pechuga = st.text_input("🐔 Lote Pechuga Pollo:", placeholder="Ej: POLLO-240122", key="email_lote_pechuga")
+                    lote_res = st.text_input("🐄 Lote Carne de Res:", placeholder="Ej: RES-010225", key="email_lote_res")
+
+                lotes_personalizados = {
+                    'cerdo': lote_cerdo.strip() if lote_cerdo.strip() else None,
+                    'pechuga': lote_pechuga.strip() if lote_pechuga.strip() else None,
+                    'muslo': lote_muslo.strip() if lote_muslo.strip() else None,
+                    'res': lote_res.strip() if lote_res.strip() else None
+                }
+        
+        # ⭐ MENSAJE FIJO (sin mostrar en interfaz)
+        mensaje_html = """
+        <h3>Reporte Completo de Comedores Procesado</h3>
+        <p>Estimados,</p>
+        <p>Adjunto encontrarán el reporte completo de comedores comunitarios:</p>
+        <ul>
+            <li><strong>📊 Archivo Excel:</strong> Datos normalizados y análisis estadístico</li>
+            <li><strong>📄 ZIP de PDFs:</strong> Guías de transporte individuales</li>
+            <li><strong>Total de comedores:</strong> {total_comedores}</li>
+            <li><strong>Total de beneficiarios:</strong> {total_beneficiarios}</li>
+            <li><strong>Total de rutas:</strong> {total_rutas}</li>
+            <li><strong>Fecha de procesamiento:</strong> {fecha_proceso}</li>
+        </ul>
+        <p>El archivo ZIP contiene las guías de transporte en formato PDF listas para impresión.</p>
+        <p>Saludos cordiales.</p>
+        """
+        
+        # ⭐ VALIDACIONES ANTES DEL BOTÓN
+        if not incluir_excel and not incluir_pdfs:
+            st.warning("⚠️ Debes seleccionar al menos un tipo de adjunto (Excel o PDFs)")
+        
+        # ⭐ BOTÓN DE ENVÍO MEJORADO
+        enviar_habilitado = incluir_excel or incluir_pdfs
+        
+        if st.button("📤 Enviar Correo con Adjuntos", type="primary", disabled=not enviar_habilitado):
+            # Validaciones
+            destinatarios = [email.strip() for email in destinatarios_text.split('\n') if email.strip()]
+            
+            if not destinatarios:
+                st.error("❌ Debes especificar al menos un destinatario.")
+                return
+                
+            if not asunto.strip():
+                st.error("❌ El asunto no puede estar vacío.")
+                return
+            
+            # ⭐ GENERAR ARCHIVOS Y ENVIAR
+            with st.spinner("🔄 Generando archivos y enviando correo..."):
+                try:
+                    df_procesado = st.session_state.df_procesado
+                    tipo_archivo = st.session_state.get('tipo_archivo', 'PROCESADO')
+                    fecha_actual = datetime.now().strftime('%Y%m%d_%H%M%S')
+                    
+                    archivos_adjuntos = []
+                    tamaño_total = 0
+                    
+                    # ⭐ GENERAR EXCEL (si está seleccionado)
+                    if incluir_excel:
+                        st.info("📊 Generando archivo Excel...")
+                        excel_buffer = crear_excel_descarga_universal(df_procesado, tipo_archivo)
+                        nombre_excel = f"reporte_comedores_{tipo_archivo}_{fecha_actual}.xlsx"
+                        
+                        archivos_adjuntos.append({
+                            'buffer': excel_buffer,
+                            'nombre': nombre_excel
+                        })
+                        
+                        tamaño_excel = len(excel_buffer.getvalue()) / (1024 * 1024)  # MB
+                        tamaño_total += tamaño_excel
+                        st.success(f"✅ Excel generado: {nombre_excel} ({tamaño_excel:.1f} MB)")
+                    
+                    # ⭐ GENERAR ZIP DE PDFs (si está seleccionado)
+                    if incluir_pdfs:
+                        st.info("📄 Generando PDFs...")
+                        from pdf_generator import GeneradorPDFsRutas
+                        
+                        generador = GeneradorPDFsRutas()
+                        modo = "por_comedor" if modo_pdf == "🏪 Un PDF por comedor" else "por_ruta"
+                        
+                        zip_buffer, num_pdfs = generador.generar_todos_los_pdfs(
+                            df_procesado,
+                            modo=modo,
+                            elaborado_por=elaborado_por,
+                            dictamen=dictamen,
+                            lotes_personalizados=lotes_personalizados if incluir_pdfs else None
+                        )
+                        
+                        nombre_zip = f"guias_transporte_{modo}_{fecha_actual}.zip"
+                        
+                        archivos_adjuntos.append({
+                            'buffer': zip_buffer,
+                            'nombre': nombre_zip
+                        })
+                        
+                        tamaño_zip = len(zip_buffer.getvalue()) / (1024 * 1024)  # MB
+                        tamaño_total += tamaño_zip
+                        st.success(f"✅ ZIP generado: {nombre_zip} con {num_pdfs} PDFs ({tamaño_zip:.1f} MB)")
+                    
+                    # ⭐ VERIFICAR TAMAÑO TOTAL
+                    if tamaño_total > 25:  # Gmail tiene límite de 25MB
+                        st.error(f"❌ Los archivos son muy grandes ({tamaño_total:.1f} MB). Gmail tiene límite de 25MB.")
+                        st.info("💡 Intenta enviar los archivos por separado o usa menos rutas.")
+                        return
+                    
+                    # ⭐ PREPARAR MENSAJE CON DATOS DINÁMICOS
+                    mensaje_personalizado = mensaje_html.format(
+                        total_comedores=len(df_procesado),
+                        total_beneficiarios=f"{df_procesado['COBER'].sum():,}",
+                        total_rutas=df_procesado['RUTA'].nunique(),
+                        fecha_proceso=datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                    )
+                    
+                    # ⭐ ENVIAR CORREO CON MÚLTIPLES ADJUNTOS
+                    st.info("📤 Enviando correo...")
+                    from email_sender import enviar_correo_con_adjuntos
+                    
+                    exito = enviar_correo_con_adjuntos(
+                        destinatarios=destinatarios,
+                        asunto=asunto,
+                        cuerpo_mensaje=mensaje_personalizado,
+                        adjuntos=archivos_adjuntos
+                    )
+                    
+                    if exito:
+                        st.success(f"✅ Correo enviado exitosamente a {len(destinatarios)} destinatarios")
+                        
+                        # ⭐ MOSTRAR RESUMEN DE ADJUNTOS
+                        st.info(f"📎 **Archivos adjuntos enviados ({tamaño_total:.1f} MB total):**")
+                        for archivo in archivos_adjuntos:
+                            tamaño_archivo = len(archivo['buffer'].getvalue()) / (1024 * 1024)
+                            st.write(f"• {archivo['nombre']} ({tamaño_archivo:.1f} MB)")
+                        
+                        # Mostrar lista de destinatarios
+                        with st.expander("📧 Destinatarios confirmados"):
+                            for email in destinatarios:
+                                st.write(f"• {email}")
+                                
+                    else:
+                        st.error("❌ Error al enviar el correo. Revisa la configuración.")
+                        
+                except Exception as e:
+                    st.error(f"❌ Error inesperado: {str(e)}")
+                    import traceback
+                    st.code(traceback.format_exc())
 
 if __name__ == "__main__":
     main()

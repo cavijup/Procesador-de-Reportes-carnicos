@@ -1,6 +1,6 @@
 import pandas as pd
 from reportlab.platypus import SimpleDocTemplate, PageBreak
-from reportlab.lib.pagesizes import A4, landscape
+from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import inch
 from io import BytesIO
 import zipfile
@@ -52,7 +52,7 @@ class GeneradorPDFsRutas:
     
     def generar_pdf_individual(self, ruta_nombre, datos_ruta, elaborado_por=None, dictamen=None, lotes_personalizados=None):
         """
-        ⭐ FIX MÍNIMO: Solo corregir la paginación sin cambiar orientación
+        ⭐ MÉTODO CORREGIDO: Ahora USA la paginación de 4 filas por página
         """
         buffer = BytesIO()
         
@@ -61,14 +61,11 @@ class GeneradorPDFsRutas:
         if dictamen:
             programa_info['dictamen'] = dictamen
         
-        # Usar método con paginación (MANTENER ORIENTACIÓN ORIGINAL)
-        nombre_archivo_temporal = f"temp_guia_{ruta_nombre.replace('/', '_').replace(' ', '_')}.pdf"
+        # ⭐ CLAVE: Usar el método de paginación correcto
+        nombre_archivo_temporal = f"temp_guia_{ruta_nombre}.pdf"
         
         try:
-            print(f"🔄 Generando PDF con paginación para {ruta_nombre}")
-            print(f"📊 Comedores a procesar: {len(datos_ruta['comedores'])}")
-            
-            # ⭐ LLAMAR AL MÉTODO CON PAGINACIÓN (orientación original)
+            # ⭐ LLAMAR AL MÉTODO QUE SÍ PAGINA CORRECTAMENTE
             self.plantilla.generar_pdf_con_paginacion(
                 datos_programa=programa_info,
                 datos_comedores=datos_ruta['comedores'],
@@ -83,20 +80,14 @@ class GeneradorPDFsRutas:
                 with open(nombre_archivo_temporal, 'rb') as temp_file:
                     buffer.write(temp_file.read())
                 # Limpiar archivo temporal
-                try:
-                    os.remove(nombre_archivo_temporal)
-                except:
-                    pass
+                os.remove(nombre_archivo_temporal)
             
             buffer.seek(0)
-            print(f"✅ PDF generado correctamente con paginación")
             return buffer
             
         except Exception as e:
-            print(f"❌ Error generando PDF con paginación: {e}")
-            print(f"🔄 Intentando con método original...")
-            
-            # ⭐ SI FALLA, usar el método original SIN paginación como último recurso
+            print(f"Error generando PDF: {e}")
+            # Fallback: usar el método anterior si falla
             return self._generar_pdf_fallback(ruta_nombre, datos_ruta, elaborado_por, dictamen, lotes_personalizados)
     
     def _generar_pdf_fallback(self, ruta_nombre, datos_ruta, elaborado_por, dictamen, lotes_personalizados):
@@ -109,7 +100,7 @@ class GeneradorPDFsRutas:
         # Configurar documento
         doc = SimpleDocTemplate(
             buffer, 
-            pagesize=landscape(A4),
+            pagesize=A4,
             rightMargin=0.3*inch,
             leftMargin=0.3*inch,
             topMargin=0.2*inch, 
@@ -123,8 +114,8 @@ class GeneradorPDFsRutas:
         programa_info = datos_ruta['programa_info'].copy()
         if dictamen:
             programa_info['dictamen'] = dictamen
-        
-       
+        numero_guia = self.generar_numero_guia(ruta_nombre)
+        elementos.extend(self.plantilla.crear_encabezado(programa_info, numero_guia))
         
         # 2. Tabla de encabezados de productos con empresa dinámica
         elementos.append(self.plantilla.crear_tabla_encabezados(programa_info))
@@ -135,8 +126,6 @@ class GeneradorPDFsRutas:
         # 4. Tabla principal de comedores (⚠️ AQUÍ NO SE PAGINA CORRECTAMENTE)
         elementos.append(self.plantilla.crear_tabla_comedores(datos_ruta['comedores'], lotes_personalizados))
         
-        # 5. Sección adicional
-        elementos.extend(self.plantilla.crear_seccion_adicional())
         
         elaborado_val = elaborado_por if elaborado_por is not None else "____________________"
         elementos.extend(self.plantilla.crear_pie_pagina(elaborado_val))
@@ -264,7 +253,7 @@ class GeneradorPDFsRutas:
                 'Empresa': datos_ruta['programa_info']['empresa'],
                 'Solicitud_Remesa': datos_ruta['programa_info']['solicitud_remesa'],
                 'Dias_Consumo': datos_ruta['programa_info']['dias_consumo'],
-                
+                'Numero_Guia': self.generar_numero_guia(ruta_nombre)
             })
         
         return pd.DataFrame(reporte)

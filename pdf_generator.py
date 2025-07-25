@@ -27,6 +27,7 @@ class GeneradorPDFsRutas:
                         'programa': row['PROGRAMA'],
                         'fecha_entrega': row['FECHA_ENTREGA'],
                         'empresa': row.get('EMPRESA', 'CONSORCIO ALIMENTANDO A CALI 2025'),
+                        'modalidad': row.get('MODALIDAD', 'CP AM CALI'),
                         'solicitud_remesa': row.get('SOLICITUD_REMESA', 'MENUS PARA 10 DIAS'),
                         'dias_consumo': row.get('DIAS_CONSUMO', f"{row['FECHA_ENTREGA']} - {row['FECHA_ENTREGA']}"),
                         'dia': row['DIA']

@@ -140,11 +140,13 @@ class PlantillaGuiaTransporte:
         lista_peso = "LISTA DE PESO MATERIA PRIMA - CARNES LACTEOS Y QUESOS - TODOS LOS PRODUCTOS - TODOS LOS DIAS"
         elementos.append(Paragraph(lista_peso, self.section_style))
 
-        # Información de despacho
+        # ✅ INFORMACIÓN DE DESPACHO DINÁMICA
         fecha_elaboracion = datetime.now().strftime('%Y-%m-%d')
-        despacho_info = f"DESPACHO: CP AM CALI - FECHA ELABORACIÓN: {fecha_elaboracion}"
+        modalidad = datos_programa.get('modalidad', 'CP AM CALI')  # ← NUEVO: Toma de modalidad
+        despacho_info = f"DESPACHO: {modalidad} - FECHA ELABORACIÓN: {fecha_elaboracion}"
         elementos.append(Paragraph(despacho_info, self.header_style))
 
+        # Resto del código permanece igual...
         fecha_despacho = datos_programa.get('fecha_entrega', datetime.now().strftime('%Y-%m-%d'))
         dictamen = datos_programa.get('dictamen', 'APROBADO')
 
@@ -153,7 +155,7 @@ class PlantillaGuiaTransporte:
         
         solicitud_remesa = datos_programa.get('solicitud_remesa', 'MENUS PARA 10 DIAS')
         dias_consumo = datos_programa.get('dias_consumo', f"{fecha_despacho} - {fecha_despacho}")
-             
+            
         linea_solicitud_dias = f"Solicitud Remesa: {solicitud_remesa}{'&nbsp;' * 200}Dias de consumo: {dias_consumo}"
         elementos.append(Paragraph(linea_solicitud_dias, self.left_info_style))
 
@@ -171,6 +173,9 @@ class PlantillaGuiaTransporte:
             empresa = 'CONSORCIO ALIMENTANDO A CALI 2025'
         return self._crear_tabla_con_writing_mode_real(empresa)
     
+    # En template.py, método _crear_tabla_con_writing_mode_real
+# CORRECCIÓN COMPLETA para eliminar el error de SPAN
+
     def _crear_tabla_con_writing_mode_real(self, empresa):
         """
         Crea tabla con encabezados verticales usando Paragraph con saltos de línea
@@ -201,7 +206,7 @@ class PlantillaGuiaTransporte:
             html_final = f'<font size="5"><b>{texto_html}</b></font>'
             return Paragraph(html_final, estilo_vertical)
 
-        # ORDEN CORREGIDO: Cerdo, Pechuga, Muslo/Contramuslo, Res
+        # ✅ SOLO UNA FILA DE DATOS
         data = [
             [
                 empresa, '', '', '', '', '',  # 0-5: EMPRESA
@@ -219,15 +224,7 @@ class PlantillaGuiaTransporte:
                 crear_writing_mode_real('TEMPERATURA PROMEDIO'),                      # 17: Res °C
                 'FIRMA\nDE\nRECIBO',                                                 # 18
                 'HORA\nDE\nENTREGA'                                                  # 19
-            ],
-            
-            # SEGUNDA FILA - Encabezados cortos
-            ['', '', '', '', '', '',
-             'CANT', 'LOTE', '°C',      # Cerdo
-             'CANT', 'LOTE', '°C',      # Pechuga
-             'CANT', 'LOTE', '°C',      # Muslo/Contramuslo
-             'CANT', 'LOTE', '°C',      # Res
-             '', 'HH:MM']
+            ]
         ]
 
         tabla = Table(data, colWidths=[
@@ -243,25 +240,25 @@ class PlantillaGuiaTransporte:
             0.8*cm, 1.1*cm, 0.8*cm,  # Res: KG, LOTE, °C
             1.7*cm, 1*cm           # FIRMA, HORA
         ], 
-        rowHeights=[None, None])  # Altura automática para ambas filas
+        rowHeights=[None])  # ✅ SOLO UNA FILA
 
+        # ✅ ESTILOS CORREGIDOS SIN SPANS PROBLEMÁTICOS
         tabla.setStyle(TableStyle([
             ('FONTSIZE', (0, 0), (-1, -1), 4),
             ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
             ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
-            ('BACKGROUND', (0, 0), (-1, 1), colors.lightgrey),
-            ('FONTNAME', (0, 0), (-1, 1), 'Helvetica-Bold'),
-            # Combinaciones de celdas
-            ('SPAN', (0, 0), (5, 1)),    # EMPRESA 2x6 (posiciones 0-5)
-            ('SPAN', (18, 0), (18, 1)),  # FIRMA vertical (posición 18)
-            # ESTILOS ESPECÍFICOS PARA WRITING MODE VERTICAL
+            ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),  # ✅ Solo fila 0
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            # ✅ SPAN SOLO HORIZONTAL EN UNA FILA
+            ('SPAN', (0, 0), (5, 0)),    # EMPRESA en columnas 0-5, solo fila 0
+            # ✅ ESTILOS ESPECÍFICOS PARA WRITING MODE VERTICAL
             ('VALIGN', (6, 0), (17, 0), 'MIDDLE'),
             ('LEFTPADDING', (6, 0), (17, 0), 1),
             ('RIGHTPADDING', (6, 0), (17, 0), 1),
             ('TOPPADDING', (6, 0), (17, 0), 3),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), -1),  # Espacio inferior mínimo en toda la tabla
+            ('BOTTOMPADDING', (0, 0), (-1, -1), -1),
         ]))
 
         return tabla
@@ -280,7 +277,7 @@ class PlantillaGuiaTransporte:
             fontName='Helvetica-Bold'
         )
         
-        ruta_text = f"CONGELADOS {nombre_ruta}"
+        ruta_text = f"{nombre_ruta}"
         ruta_para = Paragraph(ruta_text, ruta_style_pequeno)
         
         return [ruta_para]
@@ -357,7 +354,7 @@ class PlantillaGuiaTransporte:
             
             fila = [
                 str(i),
-                comedor.get('MUNICIPIO', 'CALI'),
+                dividir_texto_inteligente(comedor.get('MUNICIPIO', 'CALI'), max_chars_por_linea=8, max_lineas=2),  # ← CON SALTOS DE LÍNEA
                 comedor.get('DEPARTAMENTO', 'VALLE'),
                 dividir_texto_inteligente(comedor.get('COMEDOR/ESCUELA', ''), max_chars_por_linea=25, max_lineas=3),
                 str(comedor.get('COBER', 0)),
@@ -400,11 +397,11 @@ class PlantillaGuiaTransporte:
         # CREAR LA TABLA CON ANCHOS ALINEADOS
         tabla = Table(data, colWidths=[
             0.3*cm,  # N°
-            0.8*cm,  # MUNICIPIO
+            1*cm,  # MUNICIPIO
             0.8*cm,  # DEPARTAMENTO
             2.2*cm,  # COMEDOR/ESCUELA
             0.7*cm,  # COBER
-            1.9*cm,  # DIRECCIÓN
+            1.7*cm,  # DIRECCIÓN
             0.8*cm, 1.1*cm, 0.8*cm,  # Cerdo: KG, LOTE, °C
             0.8*cm, 1.1*cm, 0.8*cm,  # Pechuga: KG, LOTE, °C
             0.8*cm, 1.1*cm, 0.8*cm,  # Muslo/Contramuslo: UND, LOTE, °C
@@ -479,13 +476,12 @@ class PlantillaGuiaTransporte:
         """
         elementos = []
         
-        transportador = Paragraph("TRANSPORTADOR: _________________________________", self.left_info_style)
+        elementos.append(Spacer(1, 0.3*cm))
+        transportador = Paragraph("TRANSPORTADOR: ___________________________________________  Hora Salida: _______________     Placa: _______________", self.left_info_style)
         elementos.append(transportador)
-        
-        hora_placa = Paragraph("Hora Salida: _______________     Placa: _______________", self.left_info_style)
-        elementos.append(hora_placa)
-        
-        elementos.append(Spacer(1, 0.5*cm))
+    
+                
+        elementos.append(Spacer(1, 0.3*cm))
         
         # Crear tabla con firmas dinámicas
         tabla_firmas = self._crear_tabla_firmas_con_imagenes(elaborado_por)
@@ -503,7 +499,7 @@ class PlantillaGuiaTransporte:
         """
         Crea tabla de firmas con imágenes dinámicas o texto placeholder
         """
-        def cargar_imagen_firma(nombre_persona, ancho=1*cm, alto=0.5*cm):
+        def cargar_imagen_firma(nombre_persona, ancho=1.5*cm, alto=0.8*cm):
             """Carga imagen de firma desde la carpeta imagenes/"""
             try:
                 # Crear carpeta si no existe
@@ -533,8 +529,8 @@ class PlantillaGuiaTransporte:
         firma_aprobado = cargar_imagen_firma("SANDRA HENAO TORO")
 
         # Combinar nombre y firma en la misma celda
-        celda_elaborado = [Paragraph(elaborado_texto, self.styles['Normal']), Spacer(0.8, 0.05*cm), firma_elaborado]
-        celda_aprobado = [Paragraph(aprobado_texto, self.styles['Normal']), Spacer(0.8, 0.05*cm), firma_aprobado]
+        celda_elaborado = [Paragraph(elaborado_texto, self.styles['Normal']), Spacer(0.5, 0.05*cm), firma_elaborado]
+        celda_aprobado = [Paragraph(aprobado_texto, self.styles['Normal']), Spacer(0.5, 0.05*cm), firma_aprobado]
 
         data_firmas = [
             [celda_elaborado, celda_aprobado],

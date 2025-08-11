@@ -3,14 +3,13 @@ import pandas as pd
 from gspread_dataframe import set_with_dataframe
 from datetime import datetime
 
+
 class GoogleSheetsHandler:
-    """
-    Clase para manejar la autenticación y la carga de datos a Google Sheets.
-    """
     def __init__(self, secrets):
         """
         Autentica usando las credenciales del service account desde st.secrets.
         """
+        # 1. Usar directamente las credenciales sin modificar
         self.creds = secrets['credentials']
         self.spreadsheet_id = secrets['spreadsheet_id']
         self.gc = gspread.service_account_from_dict(self.creds)

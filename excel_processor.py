@@ -8,6 +8,7 @@ import pandas as pd
 import re
 from datetime import datetime
 from data_extractor import DataExtractor
+from logger_config import logger
 
 class ExcelProcessor:
     """
@@ -20,45 +21,22 @@ class ExcelProcessor:
             'carne_cerdo': {
                 'palabras_clave': ['CERDO'],
                 'unidades_validas': ['B X 1000', 'B X', 'KG', 'KILO'],
-                'variaciones_texto': [
-                    'CARNE DE CERDO MAGRA',
-                    'CARNE DE CERDO',
-                    'CERDO MAGRA',
-                    'CERDO'
-                ]
+                'variaciones_texto': ['CARNE DE CERDO']  # Más estricto
             },
             'carne_res': {
                 'palabras_clave': ['RES'],
                 'unidades_validas': ['KG', 'KILO'],
-                'variaciones_texto': [
-                    'CARNE DE RES, MAGRA',
-                    'CARNE DE RES MAGRA', 
-                    'CARNE DE RES',
-                    'RES MAGRA',
-                    'RES'
-                ]
+                'variaciones_texto': ['CARNE DE RES']
             },
             'MUSLO_CONTRAMUSLO': {
-                'palabras_clave': ['MUSLO', 'CONTRAMUSLO', 'POLLO'],
+                'palabras_clave': ['MUSLO', 'CONTRAMUSLO'],
                 'unidades_validas': ['UND', 'UNIDADES', 'UNIDAD'],
-                'variaciones_texto': [
-                    'MUSLO / CONTRAMUSLO DE POLLO',
-                    'MUSLO CONTRAMUSLO DE POLLO',
-                    'MUSLO/CONTRAMUSLO DE POLLO',
-                    'MUSLO DE POLLO',
-                    'CONTRAMUSLO DE POLLO',
-                    'POLLO ENTERO'
-                ]
+                'variaciones_texto': ['MUSLO / CONTRAMUSLO DE POLLO', 'MUSLO CONTRAMUSLO']
             },
             'pollo_peso': {
-                'palabras_clave': ['PECHUGA', 'POLLO'],
-                'unidades_validas': ['KG', 'KILO'],
-                'variaciones_texto': [
-                    'PECHUGA POLLO',
-                    'PECHUGA DE POLLO',
-                    'PECHUGA POLLO DESHUESADA',
-                    'POLLO PECHUGA'
-                ]
+                'palabras_clave': ['PECHUGA', 'POLLO'],  # Ambas son importantes
+                'unidades_validas': ['KG', 'KILO', 'B X 1000', 'B X'],  # Añadir B X 1000
+                'variaciones_texto': ['PECHUGA POLLO', 'PECHUGA DE POLLO']
             }
         }
     
@@ -120,141 +98,43 @@ class ExcelProcessor:
     
     def _extraer_registros_comedores(self, df_raw, patron_rutas, tipo_archivo, info_extraida):
         """
-        🏪 Extrae registros de comedores organizados por rutas
+        🏪 Estrategia de extracción generalizada: busca tablas directamente.
+        Cualquier texto previo a una tabla se considera la "ruta".
         """
         registros_consolidados = []
-        
-        print(f"🔍 Buscando rutas con patrón: {patron_rutas}")
-        
-        i = 0
-        rutas_encontradas = 0
-        while i < len(df_raw):
-            try:
-                celda = str(df_raw.iloc[i, 0]).strip()
-                
-                # Detectar inicio de ruta usando el patrón correspondiente
-                if re.search(patron_rutas, celda, re.IGNORECASE):
-                    rutas_encontradas += 1
-                    print(f"🛣️ Ruta encontrada en fila {i}: {celda}")
-                    
-                    ruta_completa = celda
-                    
-                    # Extraer día y ruta según el tipo
-                    dia, ruta = self._parsear_informacion_ruta(ruta_completa, tipo_archivo)
-                    
-                    # Buscar encabezados de la tabla
-                    registros_ruta = self._procesar_ruta(
-                        df_raw, i, dia, ruta, info_extraida
-                    )
-                    
-                    print(f"📊 Comedores encontrados en esta ruta: {len(registros_ruta)}")
-                    registros_consolidados.extend(registros_ruta)
-                    
-            except Exception as e:
-                print(f"Error procesando fila {i}: {e}")
-                pass
-                
-            i += 1
-        
-        print(f"📈 Resumen: {rutas_encontradas} rutas encontradas, {len(registros_consolidados)} comedores totales")
-        
-        # 🆘 FALLBACK: Si no encuentra rutas con el patrón, buscar patrones alternativos
-        if len(registros_consolidados) == 0:
-            print("🔄 No se encontraron rutas con patrón principal. Intentando patrones alternativos...")
-            registros_consolidados = self._buscar_patrones_alternativos(df_raw, tipo_archivo, info_extraida)
-        
-        return registros_consolidados
-    
-    def _buscar_patrones_alternativos(self, df_raw, tipo_archivo, info_extraida):
-        """
-        🆘 FALLBACK: Busca patrones alternativos cuando el patrón principal falla
-        """
-        registros_alternativos = []
-        
-        print("🔍 Buscando patrones alternativos...")
-        
-        # Patrones alternativos para Valle Solidario
-        patrones_fallback = [
-            r"RUTA\s+\d+",           # "RUTA 1", "RUTA 2", etc.
-            r"DIA\s+\d+",            # "DIA 1", "DIA 2", etc.
-            r"ENTREGA\s+\d+",        # "ENTREGA 1", etc.
-            r"GRUPO\s+\d+",          # "GRUPO 1", etc.
-            r"LOTE\s+\d+",           # "LOTE 1", etc.
-        ]
-        
-        for patron in patrones_fallback:
-            print(f"🔍 Probando patrón: {patron}")
-            
-            for i in range(len(df_raw)):
-                try:
-                    celda = str(df_raw.iloc[i, 0]).strip()
-                    
-                    if re.search(patron, celda, re.IGNORECASE):
-                        print(f"✅ Patrón encontrado en fila {i}: {celda}")
-                        
-                        # Usar la celda como ruta
-                        ruta_completa = celda
-                        dia = "DIA 1"
-                        ruta = ruta_completa
-                        
-                        # Procesar esta "ruta"
-                        registros_ruta = self._procesar_ruta(
-                            df_raw, i, dia, ruta, info_extraida
-                        )
-                        
-                        if registros_ruta:
-                            print(f"📊 Comedores encontrados con patrón alternativo: {len(registros_ruta)}")
-                            registros_alternativos.extend(registros_ruta)
-                            break  # Si encontró datos, no seguir buscando con este patrón
-                        
-                except Exception as e:
-                    continue
-            
-            # Si ya encontró datos con algún patrón, no seguir probando
-            if registros_alternativos:
-                break
-        
-        # 🆘 ÚLTIMO RECURSO: Buscar directamente tablas sin patrón de ruta
-        if not registros_alternativos:
-            print("🚨 Último recurso: Buscar tablas sin patrón de ruta específico")
-            registros_alternativos = self._buscar_tablas_directamente(df_raw, info_extraida)
-        
-        return registros_alternativos
-    
-    def _buscar_tablas_directamente(self, df_raw, info_extraida):
-        """
-        🚨 ÚLTIMO RECURSO: Busca tablas de comedores directamente sin patrón de ruta
-        """
-        registros_directos = []
-        
-        print("🔍 Buscando tablas directamente...")
-        
-        # Buscar celdas con "N°" que indican inicio de tabla
+        ruta_actual = "RUTA GENERAL"  # Valor por defecto si no se encuentra texto antes
+
+        # Iteramos por cada fila para encontrar el inicio de las tablas
         for i in range(len(df_raw)):
             try:
-                celda = str(df_raw.iloc[i, 0]).strip()
-                
-                if celda == "N°" and not pd.isna(df_raw.iloc[i, 1]):
-                    print(f"📋 Tabla encontrada en fila {i}")
+                celda_A_str = str(df_raw.iloc[i, 0]).strip()
+                celda_B_str = str(df_raw.iloc[i, 1]).strip()
+
+                # Condición de inicio de tabla: "N°" en Col A y texto en Col B
+                if celda_A_str in ["N°", "No."] and celda_B_str not in ["nan", ""]:
                     
-                    # Detectar columnas de productos
-                    columnas_productos, fila_encabezado = self._detectar_columnas_productos(df_raw, i)
-                    print(f"🔍 Columnas detectadas: {columnas_productos}")
+                    # --- Lógica para encontrar el nombre de la ruta ---
+                    # Buscamos hacia arriba desde la tabla para encontrar el último texto no numérico
+                    for j in range(i - 1, -1, -1):
+                        celda_ruta = df_raw.iloc[j, 0]
+                        if not pd.isna(celda_ruta) and isinstance(celda_ruta, str) and celda_ruta.strip():
+                            # Asegurarnos de que no sea parte de la información del programa
+                            if "PROGRAMA:" not in celda_ruta.upper() and "EMPRESA:" not in celda_ruta.upper():
+                                ruta_actual = celda_ruta.strip()
+                                break  # Encontramos el título, salimos del bucle de búsqueda
                     
-                    # Extraer datos sin ruta específica
-                    comedores_datos = self._extraer_datos_comedores(
-                        df_raw, i, columnas_productos, "DIA 1", "RUTA GENERAL", info_extraida
-                    )
+                    # Procesar la tabla encontrada
+                    columnas_productos, _ = self._detectar_columnas_productos(df_raw, i)
+                    
+                    comedores_datos = self._extraer_datos_de_tabla(df_raw, i, columnas_productos, "DIA 1", ruta_actual, info_extraida)
                     
                     if comedores_datos:
-                        print(f"📊 Comedores extraídos directamente: {len(comedores_datos)}")
-                        registros_directos.extend(comedores_datos)
-                        break  # Solo procesar la primera tabla encontrada
-                        
-            except Exception as e:
+                        registros_consolidados.extend(comedores_datos)
+            
+            except IndexError:  # Si una fila no tiene suficientes columnas
                 continue
-        
-        return registros_directos
+                
+        return registros_consolidados
     
     def _parsear_informacion_ruta(self, ruta_completa, tipo_archivo):
         """
@@ -272,52 +152,6 @@ class ExcelProcessor:
             ruta = ruta_completa
             
         return dia, ruta
-    
-    def _procesar_ruta(self, df_raw, inicio_ruta, dia, ruta, info_extraida):
-        """
-        🏪 Procesa una ruta específica y extrae sus comedores
-        """
-        registros_ruta = []
-        
-        print(f"🔍 Procesando ruta: {ruta}")
-        
-        # Buscar encabezados de la tabla en las siguientes 15 filas
-        for j in range(inicio_ruta + 1, min(inicio_ruta + 15, len(df_raw))):
-            try:
-                celda_a = str(df_raw.iloc[j, 0]).strip() if not pd.isna(df_raw.iloc[j, 0]) else ""
-                celda_b = str(df_raw.iloc[j, 1]).strip() if not pd.isna(df_raw.iloc[j, 1]) else ""
-                
-                # Buscar diferentes indicadores de tabla
-                es_inicio_tabla = (
-                    celda_a == "N°" or
-                    celda_a == "No." or
-                    celda_a == "NUM" or
-                    (celda_a.isdigit() and "MUNICIPIO" in celda_b.upper()) or
-                    ("COMEDOR" in celda_b.upper() or "ESCUELA" in celda_b.upper())
-                )
-                
-                if es_inicio_tabla and not pd.isna(df_raw.iloc[j, 1]):
-                    print(f"📋 Tabla encontrada en fila {j}")
-                    
-                    # Detectar columnas de productos
-                    columnas_productos, fila_encabezado = self._detectar_columnas_productos(df_raw, j)
-                    print(f"🔍 Columnas productos: {columnas_productos}")
-                    
-                    # Extraer datos de comedores
-                    comedores_datos = self._extraer_datos_comedores(
-                        df_raw, j, columnas_productos, dia, ruta, info_extraida
-                    )
-                    
-                    if comedores_datos:
-                        print(f"📊 Comedores extraídos: {len(comedores_datos)}")
-                        registros_ruta.extend(comedores_datos)
-                        break
-                    
-            except Exception as e:
-                print(f"Error en fila {j}: {e}")
-                continue
-        
-        return registros_ruta
     
     def _detectar_columnas_productos(self, df_raw, fila_inicio):
         """
@@ -357,26 +191,35 @@ class ExcelProcessor:
     
     def _clasificar_producto_por_patron(self, encabezado):
         """
-        🏷️ Clasifica un encabezado de columna según los patrones específicos
+        🏷️ Clasifica un encabezado de columna con sistema de puntuación mejorado
         """
         encabezado_limpio = self._limpiar_texto_para_comparacion(encabezado)
         
+        posibles_coincidencias = []
+
         for producto, config in self.patrones_productos.items():
-            # Verificar si contiene las palabras clave Y las unidades válidas
             tiene_palabra_clave = any(palabra in encabezado_limpio for palabra in config['palabras_clave'])
             tiene_unidad_valida = any(unidad in encabezado_limpio for unidad in config['unidades_validas'])
             
             if tiene_palabra_clave and tiene_unidad_valida:
-                # Verificación adicional con variaciones específicas
-                for variacion in config['variaciones_texto']:
-                    variacion_limpia = self._limpiar_texto_para_comparacion(variacion)
-                    if variacion_limpia in encabezado_limpio:
-                        return producto
-                
-                # Si tiene palabra clave y unidad, pero no coincide exactamente con variaciones
-                return producto
+                # Puntuación basada en cuántas palabras clave y variaciones de texto coinciden
+                score = sum(1 for palabra in config['palabras_clave'] if palabra in encabezado_limpio)
+                score += sum(1 for variacion in config['variaciones_texto'] if self._limpiar_texto_para_comparacion(variacion) in encabezado_limpio)
+                posibles_coincidencias.append((score, producto))
         
-        return None
+        if not posibles_coincidencias:
+            return None
+
+        # Ordenar por puntuación para encontrar la mejor coincidencia
+        posibles_coincidencias.sort(key=lambda x: x[0], reverse=True)
+        
+        # Lógica de desempate: si dos productos tienen la misma puntuación,
+        # preferimos el que tiene una coincidencia de 'variaciones_texto' más larga.
+        if len(posibles_coincidencias) > 1 and posibles_coincidencias[0][0] == posibles_coincidencias[1][0]:
+            # Implementar desempate si es necesario, o simplemente tomar el primero
+            pass
+
+        return posibles_coincidencias[0][1]
     
     def _limpiar_texto_para_comparacion(self, texto):
         """
@@ -432,55 +275,49 @@ class ExcelProcessor:
         
         return mapeo_defecto, fila_inicio + 2
     
-    def _extraer_datos_comedores(self, df_raw, inicio_tabla, columnas_productos, dia, ruta, info_extraida):
+    def _extraer_datos_de_tabla(self, df_raw, inicio_tabla, columnas_productos, dia, ruta, info_extraida):
         """
-        🏪 Extrae los datos de comedores de una tabla específica
+        Lee una tabla de datos desde su inicio hasta que la estructura se rompe.
+        Se detiene en filas vacías, al encontrar la palabra "TOTAL", o si los datos dejan de ser válidos.
         """
         comedores_datos = []
-        patron_rutas = self.extractor.detectar_patron_rutas("GENERAL")
-        
-        # Extraer datos de comedores
         for k in range(inicio_tabla + 1, len(df_raw)):
             try:
                 primera_celda = df_raw.iloc[k, 0]
                 
-                # Si es un número, es un comedor
-                if (not pd.isna(primera_celda) and 
-                    isinstance(primera_celda, (int, float)) and
-                    not pd.isna(df_raw.iloc[k, 1]) and
-                    not pd.isna(df_raw.iloc[k, 2])):
-                    
-                    # ✅ CREAR REGISTRO CON NUEVA ESTRUCTURA
+                # --- CONDICIÓN DE PARADA ROBUSTA ---
+                # 1. Si la primera celda está vacía o es texto que no es un número.
+                if pd.isna(primera_celda) or not isinstance(primera_celda, (int, float)):
+                    # 2. Permitimos la palabra "TOTAL" como señal de fin.
+                    if "TOTAL" in str(primera_celda).upper():
+                        break
+                    # Si es otro texto, y ya hemos leído datos, es el fin de la tabla.
+                    elif len(comedores_datos) > 0:
+                        break
+                    # Si no, simplemente es una línea de texto que ignoramos.
+                    else:
+                        continue
+                
+                # Si es una fila de datos válida (número en col A y datos en B y C)
+                if not pd.isna(df_raw.iloc[k, 1]) and not pd.isna(df_raw.iloc[k, 2]):
                     registro = {
-                        'PROGRAMA': info_extraida.get('programa', 'PROGRAMA NO DETECTADO'),
-                        'EMPRESA': info_extraida.get('empresa', 'EMPRESA NO DETECTADA'),
-                        'MODALIDAD': info_extraida.get('modalidad', 'MODALIDAD NO DETECTADA'),
-                        'SOLICITUD_REMESA': info_extraida.get('solicitud_remesa', 'NO ESPECIFICADO'),
-                        'DIAS_CONSUMO': info_extraida.get('dias_consumo', 'NO ESPECIFICADO'),
-                        'FECHA_ENTREGA': info_extraida.get('fecha_entrega', datetime.now().strftime('%Y-%m-%d')),
-                        'DIA': dia,
-                        'RUTA': ruta,
-                        'N°': int(primera_celda),
-                        'MUNICIPIO': str(df_raw.iloc[k, 1]).strip(),
-                        'COMEDOR/ESCUELA': str(df_raw.iloc[k, 2]).strip(),
-                        'COBER': df_raw.iloc[k, 3] if not pd.isna(df_raw.iloc[k, 3]) else 0,
+                        'PROGRAMA': info_extraida.get('programa', 'N/A'), 'EMPRESA': info_extraida.get('empresa', 'N/A'),
+                        'MODALIDAD': info_extraida.get('modalidad', 'N/A'), 'SOLICITUD_REMESA': info_extraida.get('solicitud_remesa', 'N/A'),
+                        'DIAS_CONSUMO': info_extraida.get('dias_consumo', 'N/A'), 'FECHA_ENTREGA': info_extraida.get('fecha_entrega', 'N/A'),
+                        'DIA': dia, 'RUTA': ruta, 'N°': int(primera_celda), 'MUNICIPIO': str(df_raw.iloc[k, 1]).strip(),
+                        'COMEDOR/ESCUELA': str(df_raw.iloc[k, 2]).strip(), 'COBER': df_raw.iloc[k, 3] if not pd.isna(df_raw.iloc[k, 3]) else 0,
                         'DIRECCIÓN': str(df_raw.iloc[k, 4]).strip() if not pd.isna(df_raw.iloc[k, 4]) else "",
                     }
-                    
-                    # Mapear productos según las columnas detectadas
                     registro.update(self._mapear_productos(df_raw, k, columnas_productos))
-                    
                     comedores_datos.append(registro)
-                    
-                # Si encontramos "TOTAL" o nueva "RUTA", salir del bucle
-                elif (not pd.isna(primera_celda) and 
-                      ("TOTAL" in str(primera_celda).upper() or 
-                       re.search(patron_rutas, str(primera_celda), re.IGNORECASE))):
-                    break
-                    
-            except Exception as e:
+                else:
+                    # Si las columnas B o C están vacías, la tabla terminó.
+                    if len(comedores_datos) > 0:
+                        break
+
+            except (IndexError, ValueError):
                 continue
-        
+                
         return comedores_datos
     
     def _mapear_productos(self, df_raw, fila, columnas_productos):

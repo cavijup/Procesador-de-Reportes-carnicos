@@ -2,6 +2,7 @@ import gspread
 import pandas as pd
 from gspread_dataframe import set_with_dataframe
 from datetime import datetime
+from logger_config import logger
 
 
 class GoogleSheetsHandler:
@@ -9,11 +10,35 @@ class GoogleSheetsHandler:
         """
         Autentica usando las credenciales del service account desde st.secrets.
         """
-        # 1. Usar directamente las credenciales sin modificar
-        self.creds = secrets['credentials']
-        self.spreadsheet_id = secrets['spreadsheet_id']
-        self.gc = gspread.service_account_from_dict(self.creds)
-        self.spreadsheet = self.gc.open_by_key(self.spreadsheet_id)
+        logger.info("Inicializando GoogleSheetsHandler...")
+        
+        try:
+            # Hacemos una copia de las credenciales para poder modificarlas
+            creds_dict = dict(secrets['credentials'])
+            
+            # --- INICIO DE LA CORRECCIÓN ROBUSTA DE LA CLAVE PRIVADA ---
+            # 1. Reemplaza los caracteres de escape literales '\\n' por saltos de línea reales '\n'.
+            private_key = creds_dict['private_key'].replace('\\n', '\n')
+            
+            # 2. Divide la clave en líneas, elimina espacios en blanco de cada una y las vuelve a unir.
+            #    Esto soluciona errores de "Incorrect padding" causados por espacios extra o formato incorrecto.
+            cleaned_lines = [line.strip() for line in private_key.strip().split('\n')]
+            creds_dict['private_key'] = '\n'.join(cleaned_lines)
+            # --- FIN DE LA CORRECCIÓN ROBUSTA ---
+
+            logger.info("Clave privada limpiada. Intentando autenticar con Google Sheets...")
+            
+            self.spreadsheet_id = secrets['spreadsheet_id']
+            self.gc = gspread.service_account_from_dict(creds_dict)
+            self.spreadsheet = self.gc.open_by_key(self.spreadsheet_id)
+            
+            logger.info("Autenticación con Google Sheets y apertura del libro de cálculo exitosa.")
+
+        except Exception as e:
+            # Captura cualquier error durante la inicialización y lo registra con detalles
+            logger.error(f"Fallo en la inicialización de GoogleSheetsHandler: {e}", exc_info=True)
+            # Vuelve a lanzar la excepción para que la app principal la maneje
+            raise
 
     def _prepare_dataframe_for_upload(self, df: pd.DataFrame) -> pd.DataFrame:
         """
@@ -33,7 +58,10 @@ class GoogleSheetsHandler:
             'FECHA', 'PROGRAMA', 'EMPRESA', 'MODALIDAD', 'SOLICITUD_REMESA',
             'DIAS_CONSUMO', 'FECHA_ENTREGA', 'DIA', 'RUTA', 'N°', 'MUNICIPIO',
             'COMEDOR/ESCUELA', 'COBER', 'DIRECCIÓN', 'CARNE_DE_CERDO',
-            'CARNE_DE_RES', 'MUSLO_CONTRAMUSLO', 'POLLO_PESO'
+            'CARNE_DE_RES', 'MUSLO_CONTRAMUSLO', 'POLLO_PESO',
+            # --- NUEVAS COLUMNAS AÑADIDAS AL FINAL ---
+            'LOTECARNE_DE_CERDO', 'LOTECARNE_DE_RES', 
+            'LOTEMUSLO_CONTRAMUSLO', 'LOTEPOLLO_PESO'
         ]
 
         # 4. Asegurar que todas las columnas de destino existan en el DataFrame
@@ -51,20 +79,22 @@ class GoogleSheetsHandler:
         """
         Añade los datos de un DataFrame al final de una hoja de cálculo específica.
         """
+        logger.info(f"Intentando añadir {len(df)} filas a la hoja '{worksheet_name}'...")
         try:
             worksheet = self.spreadsheet.worksheet(worksheet_name)
-            
-            # Preparar el DataFrame
             df_to_append = self._prepare_dataframe_for_upload(df)
-            
-            # Convertir el DataFrame a una lista de listas (sin encabezado)
             values_to_append = df_to_append.values.tolist()
-            
-            # Añadir las filas a la hoja de cálculo
             worksheet.append_rows(values_to_append, value_input_option='USER_ENTERED')
             
-            return True, f"{len(values_to_append)} filas añadidas exitosamente a '{worksheet_name}'."
+            success_message = f"{len(values_to_append)} filas añadidas exitosamente a '{worksheet_name}'."
+            logger.info(success_message)
+            return True, success_message
+            
         except gspread.exceptions.WorksheetNotFound:
-            return False, f"Error: La hoja de cálculo '{worksheet_name}' no fue encontrada."
+            error_message = f"Error: La hoja de cálculo '{worksheet_name}' no fue encontrada."
+            logger.error(error_message)
+            return False, error_message
         except Exception as e:
-            return False, f"Ocurrió un error inesperado: {e}"
+            error_message = f"Ocurrió un error inesperado al escribir en la hoja: {e}"
+            logger.error(error_message, exc_info=True)
+            return False, error_message

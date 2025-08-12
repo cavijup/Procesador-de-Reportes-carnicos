@@ -6,6 +6,7 @@ Versión 2.0 - Arquitectura modular con extracción estructurada
 
 import streamlit as st
 from datetime import datetime
+from logger_config import logger
 
 # 📦 IMPORTAR MÓDULOS LOCALES
 try:
@@ -70,7 +71,7 @@ def mostrar_sidebar():
         ✅ **Productos detectados:**
         - 🐷 Carne de Cerdo (KG/B X 1000)
         - 🐄 Carne de Res (KG)
-        - 🐔 Muslo/Contramuslo (UND)
+        - 🍗 Muslo/Contramuslo (UND)
         - 🐔 Pechuga Pollo (KG)
         """)
         
@@ -131,8 +132,6 @@ def mostrar_tab_procesamiento():
     
     # 🔄 PROCESAR ARCHIVOS
     if archivos_subidos and PROCESAMIENTO_DISPONIBLE:
-        # Checkbox para modo debug
-        modo_debug = st.checkbox("🐛 Modo Debug (mostrar logs detallados)", value=False)
         
         lista_de_resultados = []
         all_dataframes = []
@@ -149,26 +148,11 @@ def mostrar_tab_procesamiento():
                 # Inicializar procesador
                 processor = ExcelProcessor()
                 
-                # Capturar logs si está en modo debug
-                if modo_debug:
-                    import io
-                    import sys
-                    
-                    # Redirigir prints a un buffer
-                    old_stdout = sys.stdout
-                    sys.stdout = buffer = io.StringIO()
                 
                 # Procesar archivo completo
                 resultado = processor.procesar_archivo_completo(archivo)
                 df_procesado, num_registros, tipo_archivo, info_extraida = resultado
                 
-                # Mostrar logs si está en modo debug
-                if modo_debug:
-                    sys.stdout = old_stdout
-                    logs = buffer.getvalue()
-                    if logs:
-                        st.subheader(f"🐛 Logs de Debug - {archivo.name}")
-                        st.code(logs, language="text")
             
             if df_procesado is not None and num_registros > 0:
                 # Almacenar resultado
@@ -194,7 +178,7 @@ def mostrar_tab_procesamiento():
                 info = resultado['info_extraida']
                 
                 # Métricas clave
-                col1, col2, col3, col4, col5 = st.columns(5)
+                col1, col2, col3, col4, col5, col6 = st.columns(6)  # <-- CAMBIO A 6 COLUMNAS
                 with col1:
                     st.metric("Programa", info.get('programa', 'N/A')[:20] + "..." if len(str(info.get('programa', 'N/A'))) > 20 else info.get('programa', 'N/A'))
                 with col2:
@@ -204,7 +188,9 @@ def mostrar_tab_procesamiento():
                 with col4:
                     st.metric("🐄 Res (kg)", f"{df['CARNE_DE_RES'].sum():.1f}" if 'CARNE_DE_RES' in df.columns else "0.0")
                 with col5:
-                    st.metric("🐔 Muslo (und)", int(df['MUSLO_CONTRAMUSLO'].sum()) if 'MUSLO_CONTRAMUSLO' in df.columns else 0)
+                    st.metric("🍗 Muslo (und)", int(df['MUSLO_CONTRAMUSLO'].sum()) if 'MUSLO_CONTRAMUSLO' in df.columns else 0)  # <-- ICONO ACTUALIZADO
+                with col6:  # <-- NUEVA COLUMNA
+                    st.metric("🐔 Pechuga (kg)", f"{df['POLLO_PESO'].sum():.1f}" if 'POLLO_PESO' in df.columns else "0.0")
                 
                 # Vista previa del DataFrame
                 st.caption("Vista previa (10 primeras filas):")
@@ -220,38 +206,11 @@ def mostrar_tab_procesamiento():
                 st.session_state.info_extraida = lista_de_resultados[0]['info_extraida']  # Usar info del primer archivo
                 st.session_state.tipo_archivo = 'MULTIPROCESADO'
                 
+                # --- AÑADIR ESTA LÍNEA ---
+                st.session_state.nombres_archivos = [res['nombre_archivo'] for res in lista_de_resultados]
+                
                 st.success(f"✅ {len(archivos_subidos)} archivos procesados exitosamente. {len(df_combinado)} registros totales consolidados.")
                 
-                # ---- NUEVA SECCIÓN PARA GUARDAR EN GOOGLE SHEETS ----
-                if GDRIVE_DISPONIBLE:
-                    st.info("Todos los datos procesados se han consolidado y están listos para ser guardados.")
-                    
-                    if st.button("💾 Guardar Datos Consolidados en Google Sheets"):
-                        with st.spinner("Conectando con Google Sheets y guardando datos..."):
-                            try:
-                                # Inicializar el handler con los secretos
-                                handler = GoogleSheetsHandler(st.secrets["google_sheets"])
-                                
-                                # Obtener el DataFrame combinado
-                                df_a_guardar = st.session_state.df_procesado
-                                
-                                # Nombre de la hoja de destino
-                                worksheet_name = "reporte_congelados"
-                                
-                                # Llamar al método para añadir los datos
-                                exito, mensaje = handler.append_to_sheet(
-                                    df=df_a_guardar,
-                                    worksheet_name=worksheet_name
-                                )
-                                
-                                if exito:
-                                    st.success(mensaje)
-                                else:
-                                    st.error(mensaje)
-                            
-                            except Exception as e:
-                                st.error(f"Error al inicializar el Google Sheets Handler: {e}")
-                                st.warning("Asegúrate de haber configurado correctamente la sección [google_sheets] en tu archivo secrets.toml.")
             
         else:
             st.error("❌ No se pudo procesar ningún archivo")
@@ -268,6 +227,8 @@ def enviar_correo_completo(destinatarios, asunto, incluir_excel, incluir_pdfs, c
             df_procesado = st.session_state.df_procesado
             info_extraida = st.session_state.get('info_extraida', {})
             tipo_archivo = st.session_state.get('tipo_archivo', 'PROCESADO')
+            # --- AÑADIR ESTA LÍNEA ---
+            nombres_archivos = st.session_state.get('nombres_archivos', [])
             
             # Generar Excel si se solicita
             if incluir_excel:
@@ -300,7 +261,8 @@ def enviar_correo_completo(destinatarios, asunto, incluir_excel, incluir_pdfs, c
             
             # Crear mensaje HTML
             estadisticas = UtilsHelper.extraer_estadisticas_rapidas(df_procesado)
-            mensaje_html = UtilsHelper.crear_mensaje_html_correo(estadisticas, info_extraida)
+            # --- MODIFICAR ESTA LLAMADA ---
+            mensaje_html = UtilsHelper.crear_mensaje_html_correo(estadisticas, info_extraida, nombres_archivos)
             
             # Enviar correo
             exito = enviar_correo_con_adjuntos(
@@ -369,7 +331,7 @@ def mostrar_tab_generar_y_enviar():
             col1, col2 = st.columns(2)
             with col1:
                 lote_cerdo = st.text_input("🐷 Lote Cerdo:", placeholder="CERDO-2025-001")
-                lote_muslo = st.text_input("🐔 Lote Muslo/Contramuslo:", placeholder="MC-2025-A1")
+                lote_muslo = st.text_input("🍗 Lote Muslo/Contramuslo:", placeholder="MC-2025-A1")
             with col2:
                 lote_pechuga = st.text_input("🐔 Lote Pechuga:", placeholder="POLLO-240122")
                 lote_res = st.text_input("🐄 Lote Res:", placeholder="RES-010225")
@@ -409,7 +371,58 @@ def mostrar_tab_generar_y_enviar():
     # SEPARADOR
     st.markdown("---")
     
-    # SECCIÓN 2: ENVÍO DE CORREOS
+    # SECCIÓN 2: GUARDADO EN GOOGLE SHEETS
+    st.header("💾 Guardado en Base de Datos")
+    
+    if GDRIVE_DISPONIBLE:
+        if 'df_procesado' not in st.session_state:
+            st.warning("⚠️ Primero procesa archivos en la pestaña de datos.")
+        else:
+            if st.button("💾 Guardar Datos con Lotes en Google Sheets"):
+                logger.info("El usuario ha presionado el botón para guardar en Google Sheets.")
+                with st.spinner("Conectando con Google Sheets y guardando datos..."):
+                    try:
+                        # Obtener el DataFrame combinado del estado de la sesión
+                        df_a_guardar = st.session_state.df_procesado.copy()
+                        
+                        # --- INICIO DE LA LÓGICA DE ENRIQUECIMIENTO ---
+                        logger.info(f"Añadiendo lotes al DataFrame: Cerdo='{lote_cerdo}', Res='{lote_res}', Muslo='{lote_muslo}', Pechuga='{lote_pechuga}'")
+                        
+                        # Añadir las nuevas columnas de lotes al DataFrame
+                        df_a_guardar['LOTECARNE_DE_CERDO'] = lote_cerdo if lote_cerdo else ''
+                        df_a_guardar['LOTECARNE_DE_RES'] = lote_res if lote_res else ''
+                        df_a_guardar['LOTEMUSLO_CONTRAMUSLO'] = lote_muslo if lote_muslo else ''
+                        df_a_guardar['LOTEPOLLO_PESO'] = lote_pechuga if lote_pechuga else ''
+                        # --- FIN DE LA LÓGICA DE ENRIQUECIMIENTO ---
+                        
+                        # Inicializar el handler con los secretos
+                        handler = GoogleSheetsHandler(st.secrets["google_sheets"])
+                        
+                        worksheet_name = "reporte_congelados"
+                        
+                        # Llamar al método para añadir los datos (ahora con las columnas de lotes)
+                        exito, mensaje = handler.append_to_sheet(
+                            df=df_a_guardar,
+                            worksheet_name=worksheet_name
+                        )
+                        
+                        if exito:
+                            st.success(mensaje)
+                        else:
+                            st.error(mensaje)
+                    
+                    except Exception as e:
+                        error_msg = f"Error al guardar en Google Sheets: {e}"
+                        logger.error(error_msg, exc_info=True)
+                        st.error(error_msg)
+    else:
+        st.error("🚫 **Funcionalidad de Google Sheets no disponible**")
+        st.info("Verifica la configuración del archivo `secrets.toml`")
+    
+    # SEPARADOR
+    st.markdown("---")
+    
+    # SECCIÓN 3: ENVÍO DE CORREOS
     st.header("📧 Envío de Reportes por Correo")
     
     if not EMAIL_DISPONIBLE:

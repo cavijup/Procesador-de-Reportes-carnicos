@@ -94,7 +94,7 @@ class UtilsHelper:
                 '🛣️ Total Rutas',
                 '🐷 Total Carne de Cerdo (kg)',
                 '🐄 Total Carne de Res (kg)', 
-                '🐔 Total Muslo/Contramuslo (und)',
+                '🍗 Total Muslo/Contramuslo (und)',
                 '🐔 Total Pollo Peso (kg)',
                 '💰 Valor Estimado Cerdo ($)',
                 '💰 Valor Estimado Res ($)',
@@ -392,51 +392,52 @@ class UtilsHelper:
         }
     
     @staticmethod
-    def crear_mensaje_html_correo(estadisticas, info_extraida):
+    def crear_mensaje_html_correo(estadisticas, info_extraida, nombres_archivos):
         """
-        📧 Crea mensaje HTML personalizado para correos
+        📧 Crea un mensaje HTML mejorado para el correo, adaptado para el procesamiento en lote.
         """
-        info_extraida = info_extraida or {}
-        
+        # Generar la lista de archivos procesados en formato HTML
+        lista_archivos_html = "".join([f"<li style='margin: 5px 0;'>📄 {nombre}</li>" for nombre in nombres_archivos])
+
         return f"""
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #ddd; padding: 20px; border-radius: 8px;">
             <h2 style="color: #2c3e50; border-bottom: 3px solid #3498db; padding-bottom: 10px;">
-                📊 Reporte de Comedores Procesado
+                📊 Reporte Consolidado de Comedores
             </h2>
             
             <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
-                <h3 style="color: #495057; margin-top: 0;">📋 Información del Programa</h3>
-                <p><strong>🏢 Empresa:</strong> {info_extraida.get('empresa', 'No especificada')}</p>
-                <p><strong>📋 Programa:</strong> {info_extraida.get('programa', 'No especificado')}</p>
-                <p><strong>🎯 Modalidad:</strong> {info_extraida.get('modalidad', 'No especificada')}</p>
-                <p><strong>📄 Solicitud Remesa:</strong> {info_extraida.get('solicitud_remesa', 'No especificada')}</p>
-                <p><strong>📅 Días de Consumo:</strong> {info_extraida.get('dias_consumo', 'No especificados')}</p>
+                <h3 style="color: #495057; margin-top: 0;">📁 Archivos Procesados en este Lote</h3>
+                <ul style="list-style-type: none; padding-left: 0;">
+                    {lista_archivos_html}
+                </ul>
             </div>
             
             <div style="background-color: #e8f5e8; padding: 20px; border-radius: 8px; margin: 20px 0;">
-                <h3 style="color: #28a745; margin-top: 0;">📊 Estadísticas del Procesamiento</h3>
+                <h3 style="color: #28a745; margin-top: 0;">📈 Estadísticas Consolidadas (Totales del Lote)</h3>
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
                     <p><strong>🏪 Total Comedores:</strong> {estadisticas['comedores']:,}</p>
                     <p><strong>👥 Total Beneficiarios:</strong> {estadisticas['beneficiarios']:,}</p>
-                    <p><strong>🛣️ Total Rutas:</strong> {estadisticas['rutas']}</p>
+                    <p><strong>🛣️ Total Rutas Únicas:</strong> {estadisticas['rutas']}</p>
                     <p><strong>🐷 Carne de Cerdo:</strong> {estadisticas['cerdo_kg']:.1f} kg</p>
                     <p><strong>🐄 Carne de Res:</strong> {estadisticas['res_kg']:.1f} kg</p>
-                    <p><strong>🐔 Pollo (Peso):</strong> {estadisticas['pollo_kg']:.1f} kg</p>
+                    <p><strong>🍗 Muslo/Contramuslo:</strong> {estadisticas['muslo_und']:,} und</p>
+                    <p><strong>🐔 Pechuga de Pollo:</strong> {estadisticas['pollo_kg']:.1f} kg</p>
                 </div>
             </div>
             
             <div style="background-color: #fff3cd; padding: 20px; border-radius: 8px; margin: 20px 0;">
                 <h3 style="color: #856404; margin-top: 0;">📎 Archivos Adjuntos</h3>
+                <p>Se adjuntan los siguientes reportes consolidados:</p>
                 <ul style="list-style-type: none; padding-left: 0;">
-                    <li style="margin: 10px 0;">📊 <strong>Archivo Excel:</strong> Datos normalizados y análisis estadístico completo</li>
-                    <li style="margin: 10px 0;">📄 <strong>ZIP de PDFs:</strong> Guías de transporte individuales listas para impresión</li>
+                    <li style="margin: 10px 0;">📊 <strong>Archivo Excel:</strong> Contiene los datos combinados de todos los archivos procesados.</li>
+                    <li style="margin: 10px 0;">📄 <strong>Archivo ZIP:</strong> Contiene las guías de transporte en PDF para todas las rutas.</li>
                 </ul>
             </div>
             
             <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #dee2e6;">
                 <p style="color: #6c757d; font-size: 12px;">
                     🕒 Generado el {datetime.now().strftime('%Y-%m-%d a las %H:%M:%S')}<br>
-                    🤖 Sistema de Procesamiento Automatizado v2.0
+                    🤖 Sistema de Procesamiento Automatizado v2.1
                 </p>
             </div>
         </div>

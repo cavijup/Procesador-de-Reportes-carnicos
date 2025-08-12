@@ -328,7 +328,7 @@ def integrar_generador_pdf_streamlit():
     
     with col3:
         total_muslo = df_procesado['MUSLO_CONTRAMUSLO'].sum() if 'MUSLO_CONTRAMUSLO' in df_procesado.columns else 0
-        st.metric("🐔 Muslo/Contramuslo", f"{total_muslo:,} und")
+        st.metric("🍗 Muslo/Contramuslo", f"{total_muslo:,} und")
     
     with col4:
         total_pollo = df_procesado['POLLO_PESO'].sum() if 'POLLO_PESO' in df_procesado.columns else 0

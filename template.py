@@ -285,6 +285,7 @@ class PlantillaGuiaTransporte:
     def crear_tabla_comedores(self, datos_comedores, lotes_personalizados=None):
         """
         Crea la tabla principal con los comedores y productos (SIN PAGINACIÓN)
+        Optimización: Los lotes se muestran solo en la primera ocurrencia de cada producto
         """
         def dividir_texto_inteligente(texto, max_chars_por_linea=20, max_lineas=3):
             """Divide texto largo en múltiples líneas"""
@@ -335,6 +336,26 @@ class PlantillaGuiaTransporte:
         total_muslo_contramuslo = 0
         total_res = 0
         
+        # Analizar datos para determinar qué productos hay y sus lotes únicos
+        lotes = lotes_personalizados or {}
+        lotes_finales = {}
+        
+        # Determinar lotes únicos para cada tipo de producto
+        tiene_cerdo = any(float(c.get('CARNE_DE_CERDO', 0) or 0) > 0 for c in datos_comedores)
+        tiene_pechuga = any(float(c.get('POLLO_PESO', 0) or 0) > 0 for c in datos_comedores)
+        tiene_muslo = any(int(c.get('MUSLO_CONTRAMUSLO', 0) or 0) > 0 for c in datos_comedores)
+        tiene_res = any(float(c.get('CARNE_DE_RES', 0) or 0) > 0 for c in datos_comedores)
+        
+        if tiene_cerdo:
+            lotes_finales['cerdo'] = lotes.get('cerdo') if lotes.get('cerdo') else str(self.generar_lote_aleatorio())
+        if tiene_pechuga:
+            lotes_finales['pechuga'] = lotes.get('pechuga') if lotes.get('pechuga') else str(self.generar_lote_aleatorio())
+        if tiene_muslo:
+            lotes_finales['muslo'] = lotes.get('muslo') if lotes.get('muslo') else str(self.generar_lote_aleatorio())
+        if tiene_res:
+            lotes_finales['res'] = lotes.get('res') if lotes.get('res') else str(self.generar_lote_aleatorio())
+        
+        # Construir filas de datos
         for i, comedor in enumerate(datos_comedores, 1):
             # Obtener datos de los productos
             cerdo_peso = float(comedor.get('CARNE_DE_CERDO', 0) or 0)
@@ -349,31 +370,29 @@ class PlantillaGuiaTransporte:
             total_muslo_contramuslo += muslo_contramuslo_und
             total_res += res_peso
             
-            # Usar lotes personalizados si están presentes
-            lotes = lotes_personalizados or {}
-            
             fila = [
                 str(i),
-                dividir_texto_inteligente(comedor.get('MUNICIPIO', 'CALI'), max_chars_por_linea=8, max_lineas=2),  # ← CON SALTOS DE LÍNEA
+                dividir_texto_inteligente(comedor.get('MUNICIPIO', 'CALI'), max_chars_por_linea=8, max_lineas=2),
                 comedor.get('DEPARTAMENTO', 'VALLE'),
                 dividir_texto_inteligente(comedor.get('COMEDOR/ESCUELA', ''), max_chars_por_linea=25, max_lineas=3),
                 str(comedor.get('COBER', 0)),
                 dividir_texto_inteligente(comedor.get('DIRECCIÓN', ''), max_chars_por_linea=20, max_lineas=3),
                 # 1. Carne de cerdo (columnas 6-8)
                 f"{cerdo_peso:.2f}" if cerdo_peso > 0 else "",
-                self.dividir_lote_inteligente(lotes.get('cerdo') if cerdo_peso > 0 and lotes.get('cerdo') else (str(self.generar_lote_aleatorio()) if cerdo_peso > 0 else "")),
+                # Para la primera fila que tiene cerdo, ponemos el lote. Para las demás, cadena vacía (se fusionará)
+                self.dividir_lote_inteligente(lotes_finales.get('cerdo', '')) if i == 1 and tiene_cerdo else '',
                 f"{self.generar_temperatura_aleatoria()}°C" if cerdo_peso > 0 else "",
                 # 2. Pechuga de pollo (columnas 9-11)
                 f"{pollo_peso:.2f}" if pollo_peso > 0 else "",
-                self.dividir_lote_inteligente(lotes.get('pechuga') if pollo_peso > 0 and lotes.get('pechuga') else (str(self.generar_lote_aleatorio()) if pollo_peso > 0 else "")),
+                self.dividir_lote_inteligente(lotes_finales.get('pechuga', '')) if i == 1 and tiene_pechuga else '',
                 f"{self.generar_temperatura_aleatoria()}°C" if pollo_peso > 0 else "",
                 # 3. Muslo/Contramuslo (columnas 12-14)
                 str(muslo_contramuslo_und) if muslo_contramuslo_und > 0 else "",
-                self.dividir_lote_inteligente(lotes.get('muslo') if muslo_contramuslo_und > 0 and lotes.get('muslo') else (str(self.generar_lote_aleatorio()) if muslo_contramuslo_und > 0 else "")),
+                self.dividir_lote_inteligente(lotes_finales.get('muslo', '')) if i == 1 and tiene_muslo else '',
                 f"{self.generar_temperatura_aleatoria()}°C" if muslo_contramuslo_und > 0 else "",
                 # 4. Carne de res (columnas 15-17)
                 f"{res_peso:.2f}" if res_peso > 0 else "",
-                self.dividir_lote_inteligente(lotes.get('res') if res_peso > 0 and lotes.get('res') else (str(self.generar_lote_aleatorio()) if res_peso > 0 else "")),
+                self.dividir_lote_inteligente(lotes_finales.get('res', '')) if i == 1 and tiene_res else '',
                 f"{self.generar_temperatura_aleatoria()}°C" if res_peso > 0 else "",
                 # 5. Firma y hora (columnas 18-19)
                 '',  # FIRMA DE RECIBO
@@ -444,10 +463,10 @@ class PlantillaGuiaTransporte:
             ('FONTSIZE', (10, 1), (10, -2), 4),  # Lote Pechuga (columna 10)
             ('FONTSIZE', (13, 1), (13, -2), 4),  # Lote Muslo (columna 13)
             ('FONTSIZE', (16, 1), (16, -2), 4),  # Lote Res (columna 16)
-            ('VALIGN', (7, 1), (7, -2), 'TOP'),   # Alineación vertical superior
-            ('VALIGN', (10, 1), (10, -2), 'TOP'),
-            ('VALIGN', (13, 1), (13, -2), 'TOP'),
-            ('VALIGN', (16, 1), (16, -2), 'TOP'),
+            ('VALIGN', (7, 1), (7, -2), 'MIDDLE'), # Alineación vertical centrada para celdas fusionadas
+            ('VALIGN', (10, 1), (10, -2), 'MIDDLE'),
+            ('VALIGN', (13, 1), (13, -2), 'MIDDLE'),
+            ('VALIGN', (16, 1), (16, -2), 'MIDDLE'),
             ('LEFTPADDING', (7, 1), (7, -2), 1),  # Padding reducido
             ('RIGHTPADDING', (7, 1), (7, -2), 1),
             ('LEFTPADDING', (10, 1), (10, -2), 1),
@@ -457,6 +476,23 @@ class PlantillaGuiaTransporte:
             ('LEFTPADDING', (16, 1), (16, -2), 1),
             ('RIGHTPADDING', (16, 1), (16, -2), 1)
         ]
+        
+        # Agregar comandos SPAN para fusionar celdas de lotes verticalmente
+        num_filas_datos = len(datos_comedores)  # Número de filas de comedores (sin contar encabezado ni total)
+        
+        if num_filas_datos > 1:  # Solo fusionar si hay más de una fila
+            # SPAN para columnas de lotes (fusionar desde fila 1 hasta la última fila de datos)
+            # Fila 0 = encabezado, Fila 1 a num_filas_datos = datos, Fila -1 = totales
+            ultima_fila_datos = num_filas_datos  # La última fila de datos (antes de totales)
+            
+            if tiene_cerdo:
+                style.append(('SPAN', (7, 1), (7, ultima_fila_datos)))  # Columna 7 (Lote Cerdo)
+            if tiene_pechuga:
+                style.append(('SPAN', (10, 1), (10, ultima_fila_datos)))  # Columna 10 (Lote Pechuga)
+            if tiene_muslo:
+                style.append(('SPAN', (13, 1), (13, ultima_fila_datos)))  # Columna 13 (Lote Muslo)
+            if tiene_res:
+                style.append(('SPAN', (16, 1), (16, ultima_fila_datos)))  # Columna 16 (Lote Res)
         
         # Estilo de la fila de totales
         style += [

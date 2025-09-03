@@ -1,12 +1,13 @@
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image, PageBreak
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch, cm
 from reportlab.pdfgen import canvas
 from datetime import datetime
 import random
 import os
+import math
 
 class PlantillaGuiaTransporte:
     def __init__(self):
@@ -623,4 +624,63 @@ class PlantillaGuiaTransporte:
         doc.build(story)
         print(f"PDF generado exitosamente: {nombre_archivo}")
         return nombre_archivo
+
+    # =================================================================================
+    # === NUEVO MÉTODO AÑADIDO PARA SOLUCIONAR EL ERROR DE PAGINACIÓN ===
+    # =================================================================================
+    def generar_pdf_con_paginacion(self, datos_programa, datos_comedores, lotes_personalizados=None, elaborado_por="____________________", nombre_archivo="guia_transporte.pdf"):
+        """
+        Genera un PDF completo con paginación correcta, dividiendo la tabla de comedores
+        en trozos de 4 filas por página.
+        """
+        doc = SimpleDocTemplate(
+            nombre_archivo, 
+            pagesize=A4,
+            rightMargin=0.3*inch,
+            leftMargin=0.3*inch,
+            topMargin=0.2*inch, 
+            bottomMargin=0.5*inch
+        )
+        
+        story = []
+        filas_por_pagina = 4
+        numero_guia = f"{datetime.now().strftime('%m%d')}-{random.randint(100, 999)}"
+
+        # Itera sobre los datos de comedores en trozos de 'filas_por_pagina'
+        for i in range(0, len(datos_comedores), filas_por_pagina):
+            chunk_comedores = datos_comedores[i:i + filas_por_pagina]
+            
+            # --- Construye los elementos para la página actual ---
+            
+            # 1. Encabezado del documento (se repite en cada página)
+            encabezado = self.crear_encabezado(datos_programa, numero_guia)
+            story.extend(encabezado)
+            
+            # 2. Tabla de encabezados de productos
+            tabla_encabezados = self.crear_tabla_encabezados(datos_programa)
+            story.append(tabla_encabezados)
+
+            # 3. Sección de ruta (asumiendo que está en datos_programa)
+            nombre_ruta = datos_programa.get('dia', 'Ruta General')
+            story.extend(self.crear_seccion_ruta(nombre_ruta))
+            
+            # 4. Tabla principal con el trozo de comedores para esta página
+            tabla_chunk = self.crear_tabla_comedores(chunk_comedores, lotes_personalizados)
+            story.append(tabla_chunk)
+
+            # 5. Pie de página con firmas (se repite en cada página)
+            pie_pagina = self.crear_pie_pagina(elaborado_por)
+            story.extend(pie_pagina)
+            
+            # 6. Añadir un salto de página si no es la última iteración
+            if i + filas_por_pagina < len(datos_comedores):
+                story.append(PageBreak())
+
+        # Generar el PDF final con todos los elementos de todas las páginas
+        try:
+            doc.build(story)
+            print(f"PDF con paginación generado exitosamente: {nombre_archivo}")
+        except Exception as e:
+            print(f"Error al construir el PDF final con paginación: {e}")
+            raise # Vuelve a lanzar la excepción para que sea manejada por el llamador
     

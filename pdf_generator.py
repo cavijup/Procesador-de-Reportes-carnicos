@@ -87,8 +87,9 @@ class GeneradorPDFsRutas:
             return buffer
             
         except Exception as e:
-            print(f"Error generando PDF: {e}")
-            # Fallback: usar el método anterior si falla
+            print(f"ADVERTENCIA: Falló la generación con paginación, usando método de fallback. Error: {e}")
+            import traceback
+            traceback.print_exc() # Imprime el traceback completo para depuración
             return self._generar_pdf_fallback(ruta_nombre, datos_ruta, elaborado_por, dictamen, lotes_personalizados)
     
     def _generar_pdf_fallback(self, ruta_nombre, datos_ruta, elaborado_por, dictamen, lotes_personalizados):

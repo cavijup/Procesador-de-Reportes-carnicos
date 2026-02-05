@@ -178,7 +178,7 @@ def mostrar_tab_procesamiento():
                 info = resultado['info_extraida']
                 
                 # Métricas clave
-                col1, col2, col3, col4, col5, col6 = st.columns(6)  # <-- CAMBIO A 6 COLUMNAS
+                col1, col2, col3, col4, col5, col6, col7 = st.columns(7)  # <-- CAMBIO A 7 COLUMNAS
                 with col1:
                     st.metric("Programa", info.get('programa', 'N/A')[:20] + "..." if len(str(info.get('programa', 'N/A'))) > 20 else info.get('programa', 'N/A'))
                 with col2:
@@ -188,9 +188,11 @@ def mostrar_tab_procesamiento():
                 with col4:
                     st.metric("🐄 Res (kg)", f"{df['CARNE_DE_RES'].sum():.1f}" if 'CARNE_DE_RES' in df.columns else "0.0")
                 with col5:
-                    st.metric("🍗 Muslo (und)", int(df['MUSLO_CONTRAMUSLO'].sum()) if 'MUSLO_CONTRAMUSLO' in df.columns else 0)  # <-- ICONO ACTUALIZADO
-                with col6:  # <-- NUEVA COLUMNA
+                    st.metric("🍗 Muslo (und)", int(df['MUSLO_CONTRAMUSLO'].sum()) if 'MUSLO_CONTRAMUSLO' in df.columns else 0)
+                with col6:
                     st.metric("🐔 Pechuga (kg)", f"{df['POLLO_PESO'].sum():.1f}" if 'POLLO_PESO' in df.columns else "0.0")
+                with col7:  # <-- NUEVA COLUMNA TILAPIA
+                    st.metric("🐟 Tilapia (kg)", f"{df['TILAPIA'].sum():.1f}" if 'TILAPIA' in df.columns else "0.0")
                 
                 # Vista previa del DataFrame
                 st.caption("Vista previa (10 primeras filas):")
@@ -250,7 +252,8 @@ def enviar_correo_completo(destinatarios, asunto, incluir_excel, incluir_pdfs, c
                     modo=modo,
                     elaborado_por=config_pdfs.get('elaborado_por', "Supervisor"),
                     dictamen=config_pdfs.get('dictamen', "APROBADO"),
-                    lotes_personalizados=config_pdfs.get('lotes_personalizados', {})
+                    lotes_personalizados=config_pdfs.get('lotes_personalizados', {}),
+                    transporte_por_ruta=config_pdfs.get('transporte_por_ruta', {}) # <-- NUEVO PARÁMETRO
                 )
                 
                 nombre_zip = UtilsHelper.generar_nombre_archivo_unico("guias_correo", "zip")
@@ -328,19 +331,43 @@ def mostrar_tab_generar_y_enviar():
         
         # Configuración de lotes
         with st.expander("🏷️ Configuración de Lotes (Opcional)"):
-            col1, col2 = st.columns(2)
+            col1, col2, col3 = st.columns(3)
             with col1:
                 lote_cerdo = st.text_input("🐷 Lote Cerdo:", placeholder="CERDO-2025-001")
                 lote_muslo = st.text_input("🍗 Lote Muslo/Contramuslo:", placeholder="MC-2025-A1")
             with col2:
                 lote_pechuga = st.text_input("🐔 Lote Pechuga:", placeholder="POLLO-240122")
                 lote_res = st.text_input("🐄 Lote Res:", placeholder="RES-010225")
+            with col3:
+                lote_tilapia = st.text_input("🐟 Lote Tilapia:", placeholder="TILAPIA-001")
         
+        # 🚛 NUEVA SECCIÓN: CONFIGURACIÓN DE TRANSPORTE POR RUTA
+        with st.expander("🚛 Configuración de Transporte (Conductor y Placa por Ruta)"):
+            st.markdown("Configura los datos del transporte para cada ruta. Estos aparecerán impresos en el PDF.")
+            
+            rutas_encontradas = sorted(st.session_state.df_procesado['RUTA'].unique())
+            transporte_por_ruta = {}
+            
+            for ruta in rutas_encontradas:
+                st.markdown(f"**📍 Ruta: {ruta}**")
+                col_c, col_p = st.columns(2)
+                with col_c:
+                    conductor = st.text_input(f"👤 Conductor ({ruta}):", key=f"cond_{ruta}", placeholder="Nombre del conductor")
+                with col_p:
+                    placa = st.text_input(f"🔢 Placa ({ruta}):", key=f"plac_{ruta}", placeholder="ABC-123")
+                
+                transporte_por_ruta[ruta] = {
+                    'conductor': conductor.strip() if conductor.strip() else None,
+                    'placa': placa.strip() if placa.strip() else None
+                }
+                st.markdown("---")
+
         lotes_personalizados = {
             'cerdo': lote_cerdo.strip() if lote_cerdo.strip() else None,
             'pechuga': lote_pechuga.strip() if lote_pechuga.strip() else None,
             'muslo': lote_muslo.strip() if lote_muslo.strip() else None,
-            'res': lote_res.strip() if lote_res.strip() else None
+            'res': lote_res.strip() if lote_res.strip() else None,
+            'tilapia': lote_tilapia.strip() if lote_tilapia.strip() else None
         }
         
         # Botón de generación de PDFs
@@ -354,7 +381,8 @@ def mostrar_tab_generar_y_enviar():
                     modo=modo,
                     elaborado_por=elaborado_por,
                     dictamen=dictamen,
-                    lotes_personalizados=lotes_personalizados
+                    lotes_personalizados=lotes_personalizados,
+                    transporte_por_ruta=transporte_por_ruta # <-- NUEVO PARÁMETRO
                 )
                 
                 nombre_zip = UtilsHelper.generar_nombre_archivo_unico(f"guias_{modo}", "zip")
@@ -386,13 +414,14 @@ def mostrar_tab_generar_y_enviar():
                         df_a_guardar = st.session_state.df_procesado.copy()
                         
                         # --- INICIO DE LA LÓGICA DE ENRIQUECIMIENTO ---
-                        logger.info(f"Añadiendo lotes al DataFrame: Cerdo='{lote_cerdo}', Res='{lote_res}', Muslo='{lote_muslo}', Pechuga='{lote_pechuga}'")
+                        logger.info(f"Añadiendo lotes al DataFrame: Cerdo='{lote_cerdo}', Res='{lote_res}', Muslo='{lote_muslo}', Pechuga='{lote_pechuga}', Tilapia='{lote_tilapia}'")
                         
                         # Añadir las nuevas columnas de lotes al DataFrame
                         df_a_guardar['LOTECARNE_DE_CERDO'] = lote_cerdo if lote_cerdo else ''
                         df_a_guardar['LOTECARNE_DE_RES'] = lote_res if lote_res else ''
                         df_a_guardar['LOTEMUSLO_CONTRAMUSLO'] = lote_muslo if lote_muslo else ''
                         df_a_guardar['LOTEPOLLO_PESO'] = lote_pechuga if lote_pechuga else ''
+                        df_a_guardar['LOTETILAPIA'] = lote_tilapia if lote_tilapia else ''
                         # --- FIN DE LA LÓGICA DE ENRIQUECIMIENTO ---
                         
                         # Inicializar el handler con los secretos
@@ -522,7 +551,8 @@ def mostrar_tab_generar_y_enviar():
                 'modo_pdf': modo_pdf,
                 'elaborado_por': elaborado_por,
                 'dictamen': dictamen,
-                'lotes_personalizados': lotes_personalizados
+                'lotes_personalizados': lotes_personalizados,
+                'transporte_por_ruta': transporte_por_ruta # <-- NUEVO PARÁMETRO
             }
         
         enviar_correo_completo(destinatarios, asunto, incluir_excel, incluir_pdfs, config_pdfs)

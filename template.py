@@ -189,11 +189,11 @@ class PlantillaGuiaTransporte:
         estilo_vertical = ParagraphStyle(
             'WritingModeReal',
             parent=self.styles['Normal'],
-            fontSize=5,
+            fontSize=4,
             alignment=TA_CENTER,
             textColor=colors.black,
             fontName='Helvetica-Bold',
-            leading=6,
+            leading=4.5,
             leftIndent=0,
             rightIndent=0,
             spaceAfter=0,
@@ -204,7 +204,7 @@ class PlantillaGuiaTransporte:
             """Convierte texto horizontal a vertical usando saltos de línea"""
             palabras = texto.split()
             texto_html = '<br/>'.join(palabras)
-            html_final = f'<font size="5"><b>{texto_html}</b></font>'
+            html_final = f'<font size="4"><b>{texto_html}</b></font>'
             return Paragraph(html_final, estilo_vertical)
 
         # ✅ SOLO UNA FILA DE DATOS
@@ -220,26 +220,30 @@ class PlantillaGuiaTransporte:
                 crear_writing_mode_real('MUSLO/CONTRAMUSLO DE POLLO / UND'),         # 12: Muslo/Contramuslo
                 crear_writing_mode_real('MUSLO/CONTRAMUSLO DE POLLO / UND'),         # 13: Muslo/Contramuslo 
                 crear_writing_mode_real('TEMPERATURA PROMEDIO'),                      # 14: Muslo/Contramuslo °C
-                crear_writing_mode_real('CARNE DE RES, MAGRA / KG'),                 # 15: Res
-                crear_writing_mode_real('CARNE DE RES, MAGRA / KG'),                 # 16: Res
-                crear_writing_mode_real('TEMPERATURA PROMEDIO'),                      # 17: Res °C
-                'FIRMA\nDE\nRECIBO',                                                 # 18
-                'HORA\nDE\nENTREGA'                                                  # 19
+                crear_writing_mode_real('TILAPIA / KG'),                             # 15: Tilapia (NUEVO)
+                crear_writing_mode_real('TILAPIA / KG'),                             # 16: Tilapia (NUEVO)
+                crear_writing_mode_real('TEMPERATURA PROMEDIO'),                      # 17: Tilapia °C (NUEVO)
+                crear_writing_mode_real('CARNE DE RES, MAGRA / KG'),                 # 18: Res
+                crear_writing_mode_real('CARNE DE RES, MAGRA / KG'),                 # 19: Res
+                crear_writing_mode_real('TEMPERATURA PROMEDIO'),                      # 20: Res °C
+                'FIRMA\nDE\nRECIBO',                                                 # 21
+                'HORA\nDE\nENTREGA'                                                  # 22
             ]
         ]
 
         tabla = Table(data, colWidths=[
-            0.3*cm,  # N°
-            0.8*cm,  # MUNICIPIO
-            0.8*cm,  # DEPARTAMENTO
-            2.2*cm,  # COMEDOR/ESCUELA
-            0.7*cm,  # COBER
-            1.9*cm,  # DIRECCIÓN
-            0.8*cm, 1.1*cm, 0.8*cm,  # Cerdo: KG, LOTE, °C
-            0.8*cm, 1.1*cm, 0.8*cm,  # Pechuga: KG, LOTE, °C
-            0.8*cm, 1.1*cm, 0.8*cm,  # Muslo/Contramuslo: UND, LOTE, °C
-            0.8*cm, 1.1*cm, 0.8*cm,  # Res: KG, LOTE, °C
-            1.7*cm, 1*cm           # FIRMA, HORA
+            0.25*cm, # N°
+            0.7*cm,  # MUNICIPIO
+            0.7*cm,  # DEPARTAMENTO
+            1.8*cm,  # COMEDOR/ESCUELA
+            0.6*cm,  # COBER
+            1.5*cm,  # DIRECCIÓN
+            0.7*cm, 0.9*cm, 0.7*cm,  # Cerdo: KG, LOTE, °C
+            0.7*cm, 0.9*cm, 0.7*cm,  # Pechuga: KG, LOTE, °C
+            0.7*cm, 0.9*cm, 0.7*cm,  # Muslo/Contramuslo: UND, LOTE, °C
+            0.7*cm, 0.9*cm, 0.7*cm,  # Tilapia: KG, LOTE, °C
+            0.7*cm, 0.9*cm, 0.7*cm,  # Res: KG, LOTE, °C
+            1.5*cm, 0.8*cm           # FIRMA, HORA
         ], 
         rowHeights=[None])  # ✅ SOLO UNA FILA
 
@@ -255,10 +259,10 @@ class PlantillaGuiaTransporte:
             # ✅ SPAN SOLO HORIZONTAL EN UNA FILA
             ('SPAN', (0, 0), (5, 0)),    # EMPRESA en columnas 0-5, solo fila 0
             # ✅ ESTILOS ESPECÍFICOS PARA WRITING MODE VERTICAL
-            ('VALIGN', (6, 0), (17, 0), 'MIDDLE'),
-            ('LEFTPADDING', (6, 0), (17, 0), 1),
-            ('RIGHTPADDING', (6, 0), (17, 0), 1),
-            ('TOPPADDING', (6, 0), (17, 0), 3),
+            ('VALIGN', (6, 0), (20, 0), 'MIDDLE'), # Actualizado rango hasta 20
+            ('LEFTPADDING', (6, 0), (20, 0), 1),
+            ('RIGHTPADDING', (6, 0), (20, 0), 1),
+            ('TOPPADDING', (6, 0), (20, 0), 3),
             ('BOTTOMPADDING', (0, 0), (-1, -1), -1),
         ]))
 
@@ -326,6 +330,7 @@ class PlantillaGuiaTransporte:
             'KG', 'LOTE', '°C',      # Carne de cerdo
             'KG', 'LOTE', '°C',      # Pechuga de pollo  
             'UND', 'LOTE', '°C',     # Muslo/Contramuslo
+            'KG', 'LOTE', '°C',      # Tilapia
             'KG', 'LOTE', '°C',      # Carne de res
             'FIRMA DE RECIBO', 'HORA'
         ]
@@ -335,6 +340,7 @@ class PlantillaGuiaTransporte:
         total_cerdo = 0
         total_pollo = 0
         total_muslo_contramuslo = 0
+        total_tilapia = 0
         total_res = 0
         
         # Analizar datos para determinar qué productos hay y sus lotes únicos
@@ -345,6 +351,7 @@ class PlantillaGuiaTransporte:
         tiene_cerdo = any(float(c.get('CARNE_DE_CERDO', 0) or 0) > 0 for c in datos_comedores)
         tiene_pechuga = any(float(c.get('POLLO_PESO', 0) or 0) > 0 for c in datos_comedores)
         tiene_muslo = any(int(c.get('MUSLO_CONTRAMUSLO', 0) or 0) > 0 for c in datos_comedores)
+        tiene_tilapia = any(float(c.get('TILAPIA', 0) or 0) > 0 for c in datos_comedores)
         tiene_res = any(float(c.get('CARNE_DE_RES', 0) or 0) > 0 for c in datos_comedores)
         
         if tiene_cerdo:
@@ -353,6 +360,8 @@ class PlantillaGuiaTransporte:
             lotes_finales['pechuga'] = lotes.get('pechuga') if lotes.get('pechuga') else str(self.generar_lote_aleatorio())
         if tiene_muslo:
             lotes_finales['muslo'] = lotes.get('muslo') if lotes.get('muslo') else str(self.generar_lote_aleatorio())
+        if tiene_tilapia:
+            lotes_finales['tilapia'] = lotes.get('tilapia') if lotes.get('tilapia') else str(self.generar_lote_aleatorio())
         if tiene_res:
             lotes_finales['res'] = lotes.get('res') if lotes.get('res') else str(self.generar_lote_aleatorio())
         
@@ -362,6 +371,7 @@ class PlantillaGuiaTransporte:
             cerdo_peso = float(comedor.get('CARNE_DE_CERDO', 0) or 0)
             pollo_peso = float(comedor.get('POLLO_PESO', 0) or 0)
             muslo_contramuslo_und = int(comedor.get('MUSLO_CONTRAMUSLO', 0) or 0)
+            tilapia_peso = float(comedor.get('TILAPIA', 0) or 0)
             res_peso = float(comedor.get('CARNE_DE_RES', 0) or 0)
             
             # Acumular totales
@@ -369,6 +379,7 @@ class PlantillaGuiaTransporte:
             total_cerdo += cerdo_peso
             total_pollo += pollo_peso
             total_muslo_contramuslo += muslo_contramuslo_und
+            total_tilapia += tilapia_peso
             total_res += res_peso
             
             fila = [
@@ -391,11 +402,15 @@ class PlantillaGuiaTransporte:
                 str(muslo_contramuslo_und) if muslo_contramuslo_und > 0 else "",
                 self.dividir_lote_inteligente(lotes_finales.get('muslo', '')) if i == 1 and tiene_muslo else '',
                 f"{self.generar_temperatura_aleatoria()}°C" if muslo_contramuslo_und > 0 else "",
-                # 4. Carne de res (columnas 15-17)
+                # 4. Tilapia (columnas 15-17)
+                f"{tilapia_peso:.2f}" if tilapia_peso > 0 else "",
+                self.dividir_lote_inteligente(lotes_finales.get('tilapia', '')) if i == 1 and tiene_tilapia else '',
+                f"{self.generar_temperatura_aleatoria()}°C" if tilapia_peso > 0 else "",
+                # 5. Carne de res (columnas 18-20)
                 f"{res_peso:.2f}" if res_peso > 0 else "",
                 self.dividir_lote_inteligente(lotes_finales.get('res', '')) if i == 1 and tiene_res else '',
                 f"{self.generar_temperatura_aleatoria()}°C" if res_peso > 0 else "",
-                # 5. Firma y hora (columnas 18-19)
+                # 6. Firma y hora (columnas 21-22)
                 '',  # FIRMA DE RECIBO
                 ''   # HORA DE ENTREGA
             ]
@@ -409,25 +424,110 @@ class PlantillaGuiaTransporte:
             f"{total_cerdo:.2f}" if total_cerdo > 0 else "", '', '',           # Total cerdo (6-8)
             f"{total_pollo:.2f}" if total_pollo > 0 else "", '', '',           # Total pechuga (9-11)
             f"{total_muslo_contramuslo}" if total_muslo_contramuslo > 0 else "", '', '',   # Total muslo/contramuslo (12-14)
-            f"{total_res:.2f}" if total_res > 0 else "", '', '',             # Total res (15-17)
-            '', ''                                  # Firma y hora (18-19)
+            f"{total_tilapia:.2f}" if total_tilapia > 0 else "", '', '',       # Total tilapia (15-17)
+            f"{total_res:.2f}" if total_res > 0 else "", '', '',             # Total res (18-20)
+            '', ''                                  # Firma y hora (21-22)
         ]
         data.append(fila_total)
 
         # CREAR LA TABLA CON ANCHOS ALINEADOS
         tabla = Table(data, colWidths=[
-            0.3*cm,  # N°
-            1*cm,  # MUNICIPIO
-            0.8*cm,  # DEPARTAMENTO
-            2.2*cm,  # COMEDOR/ESCUELA
-            0.7*cm,  # COBER
-            1.7*cm,  # DIRECCIÓN
-            0.8*cm, 1.1*cm, 0.8*cm,  # Cerdo: KG, LOTE, °C
-            0.8*cm, 1.1*cm, 0.8*cm,  # Pechuga: KG, LOTE, °C
-            0.8*cm, 1.1*cm, 0.8*cm,  # Muslo/Contramuslo: UND, LOTE, °C
-            0.8*cm, 1.1*cm, 0.8*cm,  # Res: KG, LOTE, °C
-            1.7*cm, 1*cm           # FIRMA, HORA
+            0.25*cm, # N°
+            0.7*cm,  # MUNICIPIO
+            0.7*cm,  # DEPARTAMENTO
+            1.8*cm,  # COMEDOR/ESCUELA
+            0.6*cm,  # COBER
+            1.5*cm,  # DIRECCIÓN
+            0.7*cm, 0.9*cm, 0.7*cm,  # Cerdo: KG, LOTE, °C
+            0.7*cm, 0.9*cm, 0.7*cm,  # Pechuga: KG, LOTE, °C
+            0.7*cm, 0.9*cm, 0.7*cm,  # Muslo/Contramuslo: UND, LOTE, °C
+            0.7*cm, 0.9*cm, 0.7*cm,  # Tilapia: KG, LOTE, °C
+            0.7*cm, 0.9*cm, 0.7*cm,  # Res: KG, LOTE, °C
+            1.5*cm, 0.8*cm           # FIRMA, HORA
         ], rowHeights=[None for _ in range(len(data))])  # Altura automática para todas las filas
+
+        # APLICAR ESTILOS
+        style = [
+            ('FONTSIZE', (0, 0), (-1, -1), 4),
+            ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), -1),  # Espacio inferior mínimo en toda la tabla
+            # Estilo del encabezado
+            ('BACKGROUND', (0, 0), (-1, 0), colors.lightgrey),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            # Alineación especial para algunas columnas
+            ('ALIGN', (0, 1), (0, -2), 'CENTER'),  # Números
+            ('ALIGN', (4, 1), (4, -2), 'RIGHT'),   # Cobertura
+            ('ALIGN', (6, 1), (6, -2), 'RIGHT'),   # KG Cerdo
+            ('ALIGN', (9, 1), (9, -2), 'RIGHT'),   # KG Pechuga
+            ('ALIGN', (12, 1), (12, -2), 'RIGHT'), # UND Muslo/Contramuslo
+            ('ALIGN', (15, 1), (15, -2), 'RIGHT'), # KG Tilapia
+            ('ALIGN', (18, 1), (18, -2), 'RIGHT'), # KG Res
+            # AJUSTES ESPECIALES PARA COMEDOR/ESCUELA (columna 3)
+            ('FONTSIZE', (3, 1), (3, -2), 4),
+            ('ALIGN', (3, 1), (3, -2), 'LEFT'),
+            ('VALIGN', (3, 1), (3, -2), 'TOP'),
+            ('LEFTPADDING', (3, 1), (3, -2), 1),
+            ('RIGHTPADDING', (3, 1), (3, -2), 1),
+            # AJUSTES ESPECIALES PARA DIRECCIÓN (columna 5)
+            ('FONTSIZE', (5, 1), (5, -2), 4),
+            ('ALIGN', (5, 1), (5, -2), 'LEFT'),
+            ('VALIGN', (5, 1), (5, -2), 'TOP'),
+            ('LEFTPADDING', (5, 1), (5, -2), 1),
+            ('RIGHTPADDING', (5, 1), (5, -2), 1),
+            # ESTILOS PARA COLUMNAS DE LOTES
+            ('FONTSIZE', (7, 1), (7, -2), 4),    # Lote Cerdo (columna 7)
+            ('FONTSIZE', (10, 1), (10, -2), 4),  # Lote Pechuga (columna 10)
+            ('FONTSIZE', (13, 1), (13, -2), 4),  # Lote Muslo (columna 13)
+            ('FONTSIZE', (16, 1), (16, -2), 4),  # Lote Tilapia (columna 16)
+            ('FONTSIZE', (19, 1), (19, -2), 4),  # Lote Res (columna 19)
+            ('VALIGN', (7, 1), (7, -2), 'MIDDLE'), # Alineación vertical centrada para celdas fusionadas
+            ('VALIGN', (10, 1), (10, -2), 'MIDDLE'),
+            ('VALIGN', (13, 1), (13, -2), 'MIDDLE'),
+            ('VALIGN', (16, 1), (16, -2), 'MIDDLE'),
+            ('VALIGN', (19, 1), (19, -2), 'MIDDLE'),
+            ('LEFTPADDING', (7, 1), (7, -2), 1),  # Padding reducido
+            ('RIGHTPADDING', (7, 1), (7, -2), 1),
+            ('LEFTPADDING', (10, 1), (10, -2), 1),
+            ('RIGHTPADDING', (10, 1), (10, -2), 1),
+            ('LEFTPADDING', (13, 1), (13, -2), 1),
+            ('RIGHTPADDING', (13, 1), (13, -2), 1),
+            ('LEFTPADDING', (16, 1), (16, -2), 1),
+            ('RIGHTPADDING', (16, 1), (16, -2), 1),
+            ('LEFTPADDING', (19, 1), (19, -2), 1),
+            ('RIGHTPADDING', (19, 1), (19, -2), 1)
+        ]
+        
+        # Agregar comandos SPAN para fusionar celdas de lotes verticalmente
+        num_filas_datos = len(datos_comedores)  # Número de filas de comedores (sin contar encabezado ni total)
+        
+        if num_filas_datos > 1:  # Solo fusionar si hay más de una fila
+            # SPAN para columnas de lotes (fusionar desde fila 1 hasta la última fila de datos)
+            # Fila 0 = encabezado, Fila 1 a num_filas_datos = datos, Fila -1 = totales
+            ultima_fila_datos = num_filas_datos  # La última fila de datos (antes de totales)
+            
+            if tiene_cerdo:
+                style.append(('SPAN', (7, 1), (7, ultima_fila_datos)))  # Columna 7 (Lote Cerdo)
+            if tiene_pechuga:
+                style.append(('SPAN', (10, 1), (10, ultima_fila_datos)))  # Columna 10 (Lote Pechuga)
+            if tiene_muslo:
+                style.append(('SPAN', (13, 1), (13, ultima_fila_datos)))  # Columna 13 (Lote Muslo)
+            if tiene_tilapia:
+                style.append(('SPAN', (16, 1), (16, ultima_fila_datos)))  # Columna 16 (Lote Tilapia)
+            if tiene_res:
+                style.append(('SPAN', (19, 1), (19, ultima_fila_datos)))  # Columna 19 (Lote Res)
+        
+        # Estilo de la fila de totales
+        style += [
+            ('BACKGROUND', (0, -1), (-1, -1), colors.lightblue),
+            ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+            ('SPAN', (0, -1), (3, -1)),
+        ]
+            
+        tabla.setStyle(TableStyle(style))
+        return tabla
 
         # APLICAR ESTILOS
         style = [
@@ -507,14 +607,20 @@ class PlantillaGuiaTransporte:
     
     
         
-    def crear_pie_pagina(self, elaborado_por="____________________"):
+    def crear_pie_pagina(self, elaborado_por="____________________", conductor=None, placa=None):
         """
         Crea el pie de página con firmas y notas finales
         """
         elementos = []
         
         elementos.append(Spacer(1, 0.3*cm))
-        transportador = Paragraph("TRANSPORTADOR: ___________________________________________  Hora Salida: _______________     Placa: _______________", self.left_info_style)
+        
+        # Formatear línea de transportador dinámicamente
+        nombre_cond = conductor if conductor else "___________________________________________"
+        placa_veh = placa if placa else "_______________"
+        
+        transportador_text = f"TRANSPORTADOR: {nombre_cond}  Hora Salida: _______________     Placa: {placa_veh}"
+        transportador = Paragraph(transportador_text, self.left_info_style)
         elementos.append(transportador)
     
                 
@@ -628,7 +734,7 @@ class PlantillaGuiaTransporte:
     # =================================================================================
     # === NUEVO MÉTODO AÑADIDO PARA SOLUCIONAR EL ERROR DE PAGINACIÓN ===
     # =================================================================================
-    def generar_pdf_con_paginacion(self, datos_programa, datos_comedores, lotes_personalizados=None, elaborado_por="____________________", nombre_archivo="guia_transporte.pdf"):
+    def generar_pdf_con_paginacion(self, datos_programa, datos_comedores, lotes_personalizados=None, elaborado_por="____________________", nombre_archivo="guia_transporte.pdf", conductor=None, placa=None):
         """
         Genera un PDF completo con paginación correcta, dividiendo la tabla de comedores
         en trozos de 4 filas por página.
@@ -669,7 +775,7 @@ class PlantillaGuiaTransporte:
             story.append(tabla_chunk)
 
             # 5. Pie de página con firmas (se repite en cada página)
-            pie_pagina = self.crear_pie_pagina(elaborado_por)
+            pie_pagina = self.crear_pie_pagina(elaborado_por, conductor, placa)
             story.extend(pie_pagina)
             
             # 6. Añadir un salto de página si no es la última iteración

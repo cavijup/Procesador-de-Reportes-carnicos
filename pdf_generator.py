@@ -44,14 +44,15 @@ class GeneradorPDFsRutas:
                 'CARNE_DE_RES': row.get('CARNE_DE_RES', 0),        # Puede ser 0
                 'CARNE_DE_CERDO': row['CARNE_DE_CERDO'],           # Siempre presente
                 'MUSLO_CONTRAMUSLO': row.get('MUSLO_CONTRAMUSLO', 0),  # ⭐ NUEVA LÍNEA
-                'POLLO_PESO': row.get('POLLO_PESO', 0)             # Puede ser 0
+                'POLLO_PESO': row.get('POLLO_PESO', 0),             # Puede ser 0
+                'TILAPIA': row.get('TILAPIA', 0)                    # ⭐ NUEVA LÍNEA TILAPIA
             }
             
             rutas_data[ruta]['comedores'].append(comedor_data)
         
         return rutas_data
     
-    def generar_pdf_individual(self, ruta_nombre, datos_ruta, elaborado_por=None, dictamen=None, lotes_personalizados=None):
+    def generar_pdf_individual(self, ruta_nombre, datos_ruta, elaborado_por=None, dictamen=None, lotes_personalizados=None, transporte_info=None):
         """
         ⭐ MÉTODO CORREGIDO: Ahora USA la paginación de 4 filas por página
         """
@@ -61,6 +62,10 @@ class GeneradorPDFsRutas:
         programa_info = datos_ruta['programa_info'].copy()
         if dictamen:
             programa_info['dictamen'] = dictamen
+        
+        # Extraer conductor y placa si existen para esta ruta
+        conductor = transporte_info.get('conductor') if transporte_info else None
+        placa = transporte_info.get('placa') if transporte_info else None
         
         # ⭐ CLAVE: Usar el método de paginación correcto
         nombre_archivo_temporal = f"temp_guia_{ruta_nombre}.pdf"
@@ -72,7 +77,9 @@ class GeneradorPDFsRutas:
                 datos_comedores=datos_ruta['comedores'],
                 lotes_personalizados=lotes_personalizados,
                 elaborado_por=elaborado_por or "____________________",
-                nombre_archivo=nombre_archivo_temporal
+                nombre_archivo=nombre_archivo_temporal,
+                conductor=conductor, # <-- NUEVO
+                placa=placa          # <-- NUEVO
             )
             
             # Leer el archivo temporal y escribirlo al buffer
@@ -166,7 +173,7 @@ class GeneradorPDFsRutas:
         
         return self.generar_pdf_individual(ruta_nombre, datos_comedor, elaborado_por, dictamen)
     
-    def generar_todos_los_pdfs(self, df_procesado, modo="por_ruta", elaborado_por=None, dictamen=None, lotes_personalizados=None):
+    def generar_todos_los_pdfs(self, df_procesado, modo="por_ruta", elaborado_por=None, dictamen=None, lotes_personalizados=None, transporte_por_ruta=None):
         """
         Genera PDFs para todas las rutas y los comprime en un ZIP
         modo: "por_ruta" o "por_comedor"
@@ -178,13 +185,16 @@ class GeneradorPDFsRutas:
         
         with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
             for ruta_nombre, datos_ruta in rutas_data.items():
+                # Obtener info de transporte para esta ruta específica
+                transporte_info = transporte_por_ruta.get(ruta_nombre, {}) if transporte_por_ruta else {}
+                
                 if modo == "por_comedor":
                     for i, comedor in enumerate(datos_ruta['comedores'], 1):
                         datos_comedor_individual = {
                             'comedores': [comedor],
                             'programa_info': datos_ruta['programa_info'].copy()
                         }
-                        pdf_buffer = self.generar_pdf_individual(ruta_nombre, datos_comedor_individual, elaborado_por, dictamen, lotes_personalizados)
+                        pdf_buffer = self.generar_pdf_individual(ruta_nombre, datos_comedor_individual, elaborado_por, dictamen, lotes_personalizados, transporte_info)
                         nombre_comedor = self.limpiar_nombre_archivo(comedor['COMEDOR/ESCUELA'])
                         numero_comedor = str(i).zfill(2)
                         ruta_limpia = self.limpiar_nombre_archivo(ruta_nombre)
@@ -194,7 +204,7 @@ class GeneradorPDFsRutas:
                         total_pdfs += 1
                 else:
                     # ⭐ MODO POR RUTA CON PAGINACIÓN CORRECTA
-                    pdf_buffer = self.generar_pdf_individual(ruta_nombre, datos_ruta, elaborado_por, dictamen, lotes_personalizados)
+                    pdf_buffer = self.generar_pdf_individual(ruta_nombre, datos_ruta, elaborado_por, dictamen, lotes_personalizados, transporte_info)
                     ruta_limpia = self.limpiar_nombre_archivo(ruta_nombre)
                     if datos_ruta['comedores']:
                         primer_comedor = self.limpiar_nombre_archivo(datos_ruta['comedores'][0]['COMEDOR/ESCUELA'])
@@ -242,6 +252,7 @@ class GeneradorPDFsRutas:
             total_res = sum(c.get('CARNE_DE_RES', 0) for c in datos_ruta['comedores'])
             total_muslo_contramuslo = sum(c.get('MUSLO_CONTRAMUSLO', 0) for c in datos_ruta['comedores'])
             total_pollo = sum(c.get('POLLO_PESO', 0) for c in datos_ruta['comedores'])
+            total_tilapia = sum(c.get('TILAPIA', 0) for c in datos_ruta['comedores'])
             
             reporte.append({
                 'Ruta': ruta_nombre,
@@ -252,6 +263,7 @@ class GeneradorPDFsRutas:
                 'Total_Cerdo_kg': total_cerdo,
                 'Total_Muslo_Contramuslo_und': total_muslo_contramuslo,
                 'Total_Pollo_kg': total_pollo,
+                'Total_Tilapia_kg': total_tilapia,
                 'Empresa': datos_ruta['programa_info']['empresa'],
                 'Solicitud_Remesa': datos_ruta['programa_info']['solicitud_remesa'],
                 'Dias_Consumo': datos_ruta['programa_info']['dias_consumo'],
@@ -317,7 +329,7 @@ def integrar_generador_pdf_streamlit():
     
     # Mostrar información de las 4 columnas
     st.subheader("📊 Productos incluidos en el PDF")
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3, col4, col5 = st.columns(5)
     
     with col1:
         total_res = df_procesado['CARNE_DE_RES'].sum() if 'CARNE_DE_RES' in df_procesado.columns else 0
@@ -334,6 +346,10 @@ def integrar_generador_pdf_streamlit():
     with col4:
         total_pollo = df_procesado['POLLO_PESO'].sum() if 'POLLO_PESO' in df_procesado.columns else 0
         st.metric("🐔 Pechuga Pollo", f"{total_pollo:.1f} kg")
+        
+    with col5:
+        total_tilapia = df_procesado['TILAPIA'].sum() if 'TILAPIA' in df_procesado.columns else 0
+        st.metric("🐟 Tilapia", f"{total_tilapia:.1f} kg")
     
     # Mostrar datos dinámicos
     st.subheader("📋 Información Dinámica del Archivo")

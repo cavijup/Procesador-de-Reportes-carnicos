@@ -96,9 +96,11 @@ class UtilsHelper:
                 '🐄 Total Carne de Res (kg)', 
                 '🍗 Total Muslo/Contramuslo (und)',
                 '🐔 Total Pollo Peso (kg)',
+                '🐟 Total Tilapia (kg)',
                 '💰 Valor Estimado Cerdo ($)',
                 '💰 Valor Estimado Res ($)',
                 '💰 Valor Estimado Pollo ($)',
+                '💰 Valor Estimado Tilapia ($)',
                 '📈 Promedio Beneficiarios/Comedor',
                 '📊 Cobertura Mayor Ruta',
                 '🕒 Fecha de Procesamiento'
@@ -118,9 +120,11 @@ class UtilsHelper:
                 f"{df['CARNE_DE_RES'].sum():.2f}" if 'CARNE_DE_RES' in df.columns else "0.00",
                 f"{df['MUSLO_CONTRAMUSLO'].sum():,}" if 'MUSLO_CONTRAMUSLO' in df.columns else "0",
                 f"{df['POLLO_PESO'].sum():.2f}" if 'POLLO_PESO' in df.columns else "0.00",
+                f"{df['TILAPIA'].sum():.2f}" if 'TILAPIA' in df.columns else "0.00",
                 f"${df['CARNE_DE_CERDO'].sum() * 15000:,.0f}" if 'CARNE_DE_CERDO' in df.columns else "$0",  # Precio estimado
                 f"${df['CARNE_DE_RES'].sum() * 18000:,.0f}" if 'CARNE_DE_RES' in df.columns else "$0",
                 f"${df['POLLO_PESO'].sum() * 12000:,.0f}" if 'POLLO_PESO' in df.columns else "$0",
+                f"${df['TILAPIA'].sum() * 16000:,.0f}" if 'TILAPIA' in df.columns else "$0",
                 f"{df['COBER'].mean():.1f}" if 'COBER' in df.columns and len(df) > 0 else "0.0",
                 df.groupby('RUTA')['COBER'].sum().max() if 'RUTA' in df.columns and 'COBER' in df.columns else "0",
                 datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -141,7 +145,8 @@ class UtilsHelper:
             'CARNE_DE_CERDO': 'sum',
             'CARNE_DE_RES': 'sum',
             'MUSLO_CONTRAMUSLO': 'sum',
-            'POLLO_PESO': 'sum'
+            'POLLO_PESO': 'sum',
+            'TILAPIA': 'sum'
         }).round(2)
         
         # Renombrar columnas para mayor claridad
@@ -151,16 +156,18 @@ class UtilsHelper:
             'Cerdo_kg',
             'Res_kg',
             'Muslo_Contramuslo_und',
-            'Pollo_kg'
+            'Pollo_kg',
+            'Tilapia_kg'
         ]
         
         # Agregar columnas calculadas
         df_por_ruta['Promedio_Beneficiarios_Comedor'] = (df_por_ruta['Total_Beneficiarios'] / df_por_ruta['Comedores']).round(1)
-        df_por_ruta['Total_Proteina_kg'] = (df_por_ruta['Cerdo_kg'] + df_por_ruta['Res_kg'] + df_por_ruta['Pollo_kg']).round(2)
+        df_por_ruta['Total_Proteina_kg'] = (df_por_ruta['Cerdo_kg'] + df_por_ruta['Res_kg'] + df_por_ruta['Pollo_kg'] + df_por_ruta['Tilapia_kg']).round(2)
         df_por_ruta['Valor_Estimado_COP'] = (
             df_por_ruta['Cerdo_kg'] * 15000 + 
             df_por_ruta['Res_kg'] * 18000 + 
-            df_por_ruta['Pollo_kg'] * 12000
+            df_por_ruta['Pollo_kg'] * 12000 +
+            df_por_ruta['Tilapia_kg'] * 16000
         ).round(0)
         
         return df_por_ruta
@@ -181,7 +188,8 @@ class UtilsHelper:
             'CARNE_DE_CERDO': 'sum',
             'CARNE_DE_RES': 'sum',
             'MUSLO_CONTRAMUSLO': 'sum',
-            'POLLO_PESO': 'sum'
+            'POLLO_PESO': 'sum',
+            'TILAPIA': 'sum'
         }).round(2)
         
         df_empresa.columns = [
@@ -191,7 +199,8 @@ class UtilsHelper:
             'Cerdo_kg',
             'Res_kg', 
             'Muslo_Contramuslo_und',
-            'Pollo_kg'
+            'Pollo_kg',
+            'Tilapia_kg'
         ]
         
         return df_empresa
@@ -249,7 +258,7 @@ class UtilsHelper:
                 len(df.columns) if df is not None else 0,
                 len(df) if df is not None else 0,
                 "Numérico, Texto, Fecha",
-                "Cerdo, Res, Muslo/Contramuslo, Pechuga",
+                "Cerdo, Res, Muslo/Contramuslo, Pechuga, Tilapia",
                 df['RUTA'].nunique() if df is not None and 'RUTA' in df.columns else 0,
                 df['MUNICIPIO'].nunique() if df is not None and 'MUNICIPIO' in df.columns else 0,
                 f"{info_extraida.get('dias_consumo', 'No especificado')}",
@@ -378,6 +387,7 @@ class UtilsHelper:
                 'cerdo_kg': 0,
                 'res_kg': 0,
                 'pollo_kg': 0,
+                'tilapia_kg': 0,
                 'muslo_und': 0
             }
         
@@ -388,6 +398,7 @@ class UtilsHelper:
             'cerdo_kg': float(df['CARNE_DE_CERDO'].sum()) if 'CARNE_DE_CERDO' in df.columns else 0,
             'res_kg': float(df['CARNE_DE_RES'].sum()) if 'CARNE_DE_RES' in df.columns else 0,
             'pollo_kg': float(df['POLLO_PESO'].sum()) if 'POLLO_PESO' in df.columns else 0,
+            'tilapia_kg': float(df['TILAPIA'].sum()) if 'TILAPIA' in df.columns else 0,
             'muslo_und': int(df['MUSLO_CONTRAMUSLO'].sum()) if 'MUSLO_CONTRAMUSLO' in df.columns else 0
         }
     
@@ -422,6 +433,7 @@ class UtilsHelper:
                     <p><strong>🐄 Carne de Res:</strong> {estadisticas['res_kg']:.1f} kg</p>
                     <p><strong>🍗 Muslo/Contramuslo:</strong> {estadisticas['muslo_und']:,} und</p>
                     <p><strong>🐔 Pechuga de Pollo:</strong> {estadisticas['pollo_kg']:.1f} kg</p>
+                    <p><strong>🐟 Tilapia:</strong> {estadisticas['tilapia_kg']:.1f} kg</p>
                 </div>
             </div>
             

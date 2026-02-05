@@ -37,6 +37,11 @@ class ExcelProcessor:
                 'palabras_clave': ['PECHUGA', 'POLLO'],  # Ambas son importantes
                 'unidades_validas': ['KG', 'KILO', 'B X 1000', 'B X'],  # Añadir B X 1000
                 'variaciones_texto': ['PECHUGA POLLO', 'PECHUGA DE POLLO']
+            },
+            'tilapia': {
+                'palabras_clave': ['TILAPIA', 'PESCADO'],
+                'unidades_validas': ['KG', 'KILO', 'B X 1000', 'B X'],
+                'variaciones_texto': ['TILAPIA', 'FILETE DE TILAPIA']
             }
         }
     
@@ -327,7 +332,7 @@ class ExcelProcessor:
         productos = {}
         
         # Mapear cada tipo de producto
-        for producto_tipo in ['carne_cerdo', 'carne_res', 'MUSLO_CONTRAMUSLO', 'pollo_peso']:
+        for producto_tipo in ['carne_cerdo', 'carne_res', 'MUSLO_CONTRAMUSLO', 'pollo_peso', 'tilapia']:
             if producto_tipo in columnas_productos:
                 col = columnas_productos[producto_tipo]
                 valor = df_raw.iloc[fila, col] if not pd.isna(df_raw.iloc[fila, col]) else 0
@@ -341,6 +346,8 @@ class ExcelProcessor:
                     productos['MUSLO_CONTRAMUSLO'] = valor
                 elif producto_tipo == 'pollo_peso':
                     productos['POLLO_PESO'] = valor
+                elif producto_tipo == 'tilapia':
+                    productos['TILAPIA'] = valor
             else:
                 # Valores por defecto
                 if producto_tipo == 'carne_cerdo':
@@ -351,6 +358,8 @@ class ExcelProcessor:
                     productos['MUSLO_CONTRAMUSLO'] = 0
                 elif producto_tipo == 'pollo_peso':
                     productos['POLLO_PESO'] = 0
+                elif producto_tipo == 'tilapia':
+                    productos['TILAPIA'] = 0
         
         return productos
     
@@ -366,6 +375,7 @@ class ExcelProcessor:
         df_final['CARNE_DE_RES'] = pd.to_numeric(df_final['CARNE_DE_RES'], errors='coerce').fillna(0).astype(float)
         df_final['MUSLO_CONTRAMUSLO'] = pd.to_numeric(df_final['MUSLO_CONTRAMUSLO'], errors='coerce').fillna(0).astype(int)
         df_final['POLLO_PESO'] = pd.to_numeric(df_final['POLLO_PESO'], errors='coerce').fillna(0).astype(float)
+        df_final['TILAPIA'] = pd.to_numeric(df_final['TILAPIA'], errors='coerce').fillna(0).astype(float)
         
         # Validar campos de texto
         for col in ['PROGRAMA', 'EMPRESA', 'MODALIDAD', 'SOLICITUD_REMESA', 'DIAS_CONSUMO']:
@@ -388,6 +398,7 @@ class ExcelProcessor:
             'total_res_kg': float(df_procesado['CARNE_DE_RES'].sum()),
             'total_muslo_contramuslo': int(df_procesado['MUSLO_CONTRAMUSLO'].sum()),
             'total_pollo_kg': float(df_procesado['POLLO_PESO'].sum()),
+            'total_tilapia_kg': float(df_procesado['TILAPIA'].sum()),
             'programa_principal': df_procesado['PROGRAMA'].iloc[0] if len(df_procesado) > 0 else "N/A",
             'empresa_principal': df_procesado['EMPRESA'].iloc[0] if len(df_procesado) > 0 else "N/A",
             'modalidad_principal': df_procesado['MODALIDAD'].iloc[0] if len(df_procesado) > 0 else "N/A"

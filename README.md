@@ -141,6 +141,5 @@ Si encuentras algún problema:
 ## 🔄 Versiones
 
 - **v1.0**: Versión inicial con procesamiento básico
-- Funcionalidad completa de carga, procesamiento y descarga
-- Interfaz web intuitiva con Streamlit
-- Validación robusta de datos
+- **v2.0**: Versión modular con soporte para múltiples programas
+- **v2.1**: Soporte para Tilapia, configuración dinámica de transporte (Conductor/Placa) y mejoras en PDF.
